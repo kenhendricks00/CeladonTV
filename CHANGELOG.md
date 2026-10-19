@@ -9,5 +9,8 @@
 - Forwards Back and media keys from the remote; long-press Back, Menu, or Settings opens the settings screen.
 - Adds settings for ad blocking, the script variant, and script updates.
 
+#### **📜 License**
+- Released under the MIT License.
+
 #### **⚠️ Known Limitations**
 - Ad blocking has only been tested against simulated ad breaks, not real Twitch ads.
