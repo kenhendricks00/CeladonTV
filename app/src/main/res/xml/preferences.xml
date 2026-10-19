@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/pref_category_ad_block">
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="ad_block"
+            app:summary="@string/pref_ad_block_summary"
+            app:title="@string/pref_ad_block" />
+
+        <ListPreference
+            app:defaultValue="vaft"
+            app:dependency="ad_block"
+            app:entries="@array/script_variant_names"
+            app:entryValues="@array/script_variant_keys"
+            app:key="script_variant"
+            app:title="@string/pref_script_variant"
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_category_updates">
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="auto_update"
+            app:summary="@string/pref_auto_update_summary"
+            app:title="@string/pref_auto_update" />
+
+        <Preference
+            app:key="update_now"
+            app:title="@string/pref_update_now" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_category_about">
+        <Preference
+            app:key="licenses"
+            app:summary="@string/pref_licenses_summary"
+            app:title="@string/pref_licenses" />
+    </PreferenceCategory>
+</PreferenceScreen>

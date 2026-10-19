@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TwitchCobalt</string>
+    <string name="settings_title">TwitchCobalt settings</string>
+
+    <string name="pref_category_ad_block">Ad blocking</string>
+    <string name="pref_ad_block">Block ads</string>
+    <string name="pref_ad_block_summary">Inject the TwitchAdSolutions script and the hls.js ad-segment filter</string>
+    <string name="pref_script_variant">Script variant</string>
+
+    <string name="pref_category_updates">Script updates</string>
+    <string name="pref_auto_update">Update scripts automatically</string>
+    <string name="pref_auto_update_summary">Check TwitchAdSolutions on GitHub once a day; applied on next launch</string>
+    <string name="pref_update_now">Check for updates now</string>
+    <string name="pref_update_now_running">Checking…</string>
+    <string name="update_updated">%1$s updated to %2$s</string>
+    <string name="update_up_to_date">%1$s %2$s is up to date</string>
+    <string name="update_failed">%1$s update failed: %2$s</string>
+
+    <string name="pref_category_about">About</string>
+    <string name="pref_licenses">Open-source licenses</string>
+    <string name="pref_licenses_summary">Ad-block scripts from TwitchAdSolutions (MIT). Not affiliated with Twitch.</string>
+
+    <string-array name="script_variant_names">
+        <item>vaft (recommended)</item>
+        <item>video-swap-new</item>
+    </string-array>
+    <string-array name="script_variant_keys" translatable="false">
+        <item>vaft</item>
+        <item>video-swap-new</item>
+    </string-array>
+</resources>
