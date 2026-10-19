@@ -35,12 +35,12 @@ The name comes from `celadon`, the codename Twitch uses for its Android TV app (
 ## Install on Android TV
 
 1. Install **Downloader** by AFTVnews from the Google Play Store or Amazon Appstore.
-2. Open Downloader and enter the code: `CODE_TBD` <!-- Downloader short code goes here -->
-   or the URL `https://github.com/kenhendricks00/CeladonTV/releases/latest/download/CeladonTV.apk`
+2. Open Downloader and enter the code **`6719631`**. You can also use https://aftv.news/6719631
+   or the full URL `https://github.com/kenhendricks00/CeladonTV/releases/latest/download/CeladonTV.apk`.
 3. Allow Downloader to install unknown apps when Android asks, then install the APK.
 4. Open **CeladonTV** from your apps row.
 
-The URL above always points to the newest release. Updates install over the previous version as
+The code and URLs above always point to the newest release. Updates install over the previous version as
 long as they come from this repository's releases.
 
 ## Build from Source
