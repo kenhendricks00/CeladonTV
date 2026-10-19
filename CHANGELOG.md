@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+#### **📝 Documentation**
+- Added the Downloader (AFTVnews) code `6719631` to the install instructions.
+
 ## v0.1.0 (10/19/2026)
 
 #### **✨ Features**
