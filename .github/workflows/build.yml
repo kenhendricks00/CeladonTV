@@ -18,7 +18,7 @@ jobs:
           node-version: 22
       - uses: gradle/actions/setup-gradle@v6
       - run: ./gradlew assembleDebug check
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: CeladonTV-debug
           path: app/build/outputs/apk/debug/app-debug.apk
