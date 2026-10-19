@@ -5,6 +5,7 @@
 <div align="center">
   <a href="https://github.com/kenhendricks00/CeladonTV/releases"><img src="https://img.shields.io/github/v/release/kenhendricks00/CeladonTV?include_prereleases&label=Latest%20Release&color=green" alt="Latest Release"></a>
   <a href="https://github.com/kenhendricks00/CeladonTV/commits/master/"><img src="https://img.shields.io/github/last-commit/kenhendricks00/CeladonTV?label=Last%20Commit&color=green" alt="Last Commit"></a>
+  <a href="https://github.com/kenhendricks00/CeladonTV/blob/master/LICENSE"><img src="https://img.shields.io/github/license/kenhendricks00/CeladonTV" alt="License"></a>
   <a href="https://github.com/kenhendricks00/CeladonTV/stargazers"><img src="https://img.shields.io/github/stars/kenhendricks00/CeladonTV?style=social" alt="GitHub Stars"></a>
 </div>
 
@@ -140,7 +141,7 @@ CeladonTV is not affiliated with Twitch. Blocking ads may be against Twitch's Te
 
 # 📜 License
 
-No license has been chosen yet.
+Distributed under the MIT License. See `LICENSE` for more information.
 
 # 🌟 Credits
 
