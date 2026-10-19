@@ -1,4 +1,4 @@
-package dev.twitchcobalt.scripts
+package io.github.kenhendricks00.celadontv.scripts
 
 import java.net.HttpURLConnection
 import java.net.URL

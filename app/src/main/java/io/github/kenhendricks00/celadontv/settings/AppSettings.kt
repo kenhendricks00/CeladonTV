@@ -1,8 +1,8 @@
-package dev.twitchcobalt.settings
+package io.github.kenhendricks00.celadontv.settings
 
 import android.content.Context
 import androidx.preference.PreferenceManager
-import dev.twitchcobalt.scripts.ScriptVariant
+import io.github.kenhendricks00.celadontv.scripts.ScriptVariant
 
 class AppSettings(context: Context) {
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)

@@ -1,6 +1,6 @@
-// TwitchCobalt hls.js adapter.
+// CeladonTV hls.js adapter.
 //
-// Twitch's TV web app (android.tv.twitch.tv, "Starshot") plays streams with hls.js
+// Twitch's TV web app ("Starshot") plays streams with hls.js
 // on the main thread instead of the Amazon IVS worker that the TwitchAdSolutions
 // scripts hook. This filters stitched ad segments out of media playlists as hls.js
 // loads them, keeping media/discontinuity sequence numbers consistent so the player
@@ -12,7 +12,7 @@
     const AD_SIGNIFIERS = ['stitched-ad', 'EXT-X-CUE-OUT', 'twitch-stitched', 'CLASS="twitch-maf-ad"'];
     const AD_URL_PATTERNS = ['/adsquared/', '/_404/', '/processing'];
     const SEGMENT_TAG = /^#(EXTINF|EXT-X-PROGRAM-DATE-TIME|EXT-X-DISCONTINUITY(?!-SEQUENCE)|EXT-X-DATERANGE|EXT-X-BYTERANGE|EXT-X-KEY|EXT-X-MAP|EXT-X-GAP|EXT-X-CUE)/;
-    const LOG_PREFIX = '[TwitchCobalt]';
+    const LOG_PREFIX = '[CeladonTV]';
 
     function hasAdTags(text) {
         return AD_SIGNIFIERS.some((s) => text.includes(s));
@@ -114,8 +114,8 @@
         const proto = XHR.prototype;
         const realOpen = proto.open;
         proto.open = function (method, url) {
-            this.__tcPlaylistUrl = isPlaylistUrl(String(url)) ? String(url) : null;
-            this.__tcFiltered = undefined;
+            this.__ctvPlaylistUrl = isPlaylistUrl(String(url)) ? String(url) : null;
+            this.__ctvFiltered = undefined;
             return realOpen.apply(this, arguments);
         };
         for (const prop of ['responseText', 'response']) {
@@ -125,9 +125,9 @@
                 enumerable: desc.enumerable,
                 get: function () {
                     const value = desc.get.call(this);
-                    if (!this.__tcPlaylistUrl || this.readyState !== 4 || typeof value !== 'string') return value;
-                    if (this.__tcFiltered === undefined) this.__tcFiltered = filterPlaylist(this.__tcPlaylistUrl, value);
-                    return this.__tcFiltered;
+                    if (!this.__ctvPlaylistUrl || this.readyState !== 4 || typeof value !== 'string') return value;
+                    if (this.__ctvFiltered === undefined) this.__ctvFiltered = filterPlaylist(this.__ctvPlaylistUrl, value);
+                    return this.__ctvFiltered;
                 },
             });
         }
@@ -152,8 +152,8 @@
         };
     }
 
-    if (typeof window !== 'undefined' && window.top === window && !window.__tcHlsAdblock) {
-        window.__tcHlsAdblock = true;
+    if (typeof window !== 'undefined' && window.top === window && !window.__ctvHlsAdblock) {
+        window.__ctvHlsAdblock = true;
         hookXhr(window.XMLHttpRequest);
         hookFetch(window);
     }

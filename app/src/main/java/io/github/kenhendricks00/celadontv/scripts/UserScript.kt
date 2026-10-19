@@ -1,4 +1,4 @@
-package dev.twitchcobalt.scripts
+package io.github.kenhendricks00.celadontv.scripts
 
 data class UserScript(val name: String, val version: String, val source: String) {
     companion object {

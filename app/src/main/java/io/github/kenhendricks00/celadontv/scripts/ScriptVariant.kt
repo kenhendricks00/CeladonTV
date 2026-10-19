@@ -1,4 +1,4 @@
-package dev.twitchcobalt.scripts
+package io.github.kenhendricks00.celadontv.scripts
 
 private const val UPSTREAM = "https://raw.githubusercontent.com/ryanbr/TwitchAdSolutions/master"
 

@@ -20,5 +20,5 @@ jobs:
       - run: ./gradlew assembleDebug check
       - uses: actions/upload-artifact@v4
         with:
-          name: TwitchCobalt-debug
+          name: CeladonTV-debug
           path: app/build/outputs/apk/debug/app-debug.apk

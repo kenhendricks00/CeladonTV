@@ -1,11 +1,11 @@
-package dev.twitchcobalt
+package io.github.kenhendricks00.celadontv
 
 import android.content.Context
 import android.util.Log
-import dev.twitchcobalt.scripts.ScriptStore
-import dev.twitchcobalt.scripts.ScriptUpdater
-import dev.twitchcobalt.scripts.ScriptVariant
-import dev.twitchcobalt.settings.AppSettings
+import io.github.kenhendricks00.celadontv.scripts.ScriptStore
+import io.github.kenhendricks00.celadontv.scripts.ScriptUpdater
+import io.github.kenhendricks00.celadontv.scripts.ScriptVariant
+import io.github.kenhendricks00.celadontv.settings.AppSettings
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit

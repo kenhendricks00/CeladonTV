@@ -1,4 +1,4 @@
-package dev.twitchcobalt
+package io.github.kenhendricks00.celadontv
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -13,8 +13,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import dev.twitchcobalt.settings.AppSettings
-import dev.twitchcobalt.settings.SettingsActivity
+import io.github.kenhendricks00.celadontv.settings.AppSettings
+import io.github.kenhendricks00.celadontv.settings.SettingsActivity
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -121,6 +121,6 @@ class MainActivity : Activity() {
     }
 
     private companion object {
-        const val TAG = "TwitchCobalt"
+        const val TAG = "CeladonTV"
     }
 }

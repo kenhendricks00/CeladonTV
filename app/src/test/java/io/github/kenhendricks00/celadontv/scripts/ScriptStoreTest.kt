@@ -1,4 +1,4 @@
-package dev.twitchcobalt.scripts
+package io.github.kenhendricks00.celadontv.scripts
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
