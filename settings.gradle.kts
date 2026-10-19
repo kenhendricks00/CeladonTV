@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TwitchCobalt"
+rootProject.name = "CeladonTV"
 include(":app")

@@ -1,4 +1,4 @@
-package dev.twitchcobalt
+package io.github.kenhendricks00.celadontv
 
 import android.view.KeyEvent
 

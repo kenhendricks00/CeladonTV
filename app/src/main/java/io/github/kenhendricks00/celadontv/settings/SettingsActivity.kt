@@ -1,4 +1,4 @@
-package dev.twitchcobalt.settings
+package io.github.kenhendricks00.celadontv.settings
 
 import android.os.Bundle
 import android.widget.Toast
@@ -6,10 +6,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
-import dev.twitchcobalt.AdBlock
-import dev.twitchcobalt.R
-import dev.twitchcobalt.scripts.ScriptUpdater.Outcome
-import dev.twitchcobalt.scripts.ScriptVariant
+import io.github.kenhendricks00.celadontv.AdBlock
+import io.github.kenhendricks00.celadontv.R
+import io.github.kenhendricks00.celadontv.scripts.ScriptUpdater.Outcome
+import io.github.kenhendricks00.celadontv.scripts.ScriptVariant
 
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

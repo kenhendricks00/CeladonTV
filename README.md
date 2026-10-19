@@ -1,11 +1,13 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# TwitchCobalt
+# CeladonTV
 
 An Android TV app that runs Twitch's official 10-foot web client and injects ad-blocking
 scripts into it — the Twitch counterpart of [TizenTubeCobalt](https://github.com/reisxd/TizenTubeCobalt).
 Instead of re-implementing Twitch natively (like [S0undTV](https://github.com/S0und/S0undTV)),
 it wraps Twitch's own TV app, so the UI, login, and player stay Twitch's.
+
+The name comes from `celadon`, the codename Twitch uses for its Android TV app (see below).
 
 Not affiliated with Twitch. Blocking ads may be against Twitch's Terms of Service.
 
@@ -62,7 +64,7 @@ Two scripts are injected when ad blocking is on:
 | --- | --- |
 | D-pad / OK | Navigate Twitch's UI |
 | Back | Back inside Twitch; exits from the home screen |
-| Long-press Back, Menu, or Settings | Open TwitchCobalt settings |
+| Long-press Back, Menu, or Settings | Open CeladonTV settings |
 | Play/Pause, Play, Pause, Stop, Fast-forward, Rewind | Player controls |
 
 ## Settings
@@ -85,7 +87,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 In debug builds the WebView is inspectable from `chrome://inspect`, and page console output is
-logged under the `TwitchCobalt` logcat tag.
+logged under the `CeladonTV` logcat tag.
 
 ## Third-party code and licenses
 

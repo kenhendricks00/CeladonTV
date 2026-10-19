@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.twitchcobalt"
+    namespace = "io.github.kenhendricks00.celadontv"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.twitchcobalt"
+        applicationId = "io.github.kenhendricks00.celadontv"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
