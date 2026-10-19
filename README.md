@@ -1,24 +1,87 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<p align="center">
+  <a href="https://github.com/kenhendricks00/CeladonTV/releases"><img src="assets/banner.png" alt="CeladonTV Banner"></a>
+</p>
 
-# CeladonTV
+<div align="center">
+  <a href="https://github.com/kenhendricks00/CeladonTV/releases"><img src="https://img.shields.io/github/v/release/kenhendricks00/CeladonTV?include_prereleases&label=Latest%20Release&color=green" alt="Latest Release"></a>
+  <a href="https://github.com/kenhendricks00/CeladonTV/commits/master/"><img src="https://img.shields.io/github/last-commit/kenhendricks00/CeladonTV?label=Last%20Commit&color=green" alt="Last Commit"></a>
+  <a href="https://github.com/kenhendricks00/CeladonTV/stargazers"><img src="https://img.shields.io/github/stars/kenhendricks00/CeladonTV?style=social" alt="GitHub Stars"></a>
+</div>
 
-An Android TV app that runs Twitch's official 10-foot web client and injects ad-blocking
-scripts into it — the Twitch counterpart of [TizenTubeCobalt](https://github.com/reisxd/TizenTubeCobalt).
-Instead of re-implementing Twitch natively (like [S0undTV](https://github.com/S0und/S0undTV)),
-it wraps Twitch's own TV app, so the UI, login, and player stay Twitch's.
+<h2><div align="center"><b>CeladonTV: Twitch's TV App for Android TV, With Built-in Ad Blocking</b></div></h2>
 
-The name comes from `celadon`, the codename Twitch uses for its Android TV app (see below).
+# 📺 What is CeladonTV?
 
-Not affiliated with Twitch. Blocking ads may be against Twitch's Terms of Service.
+**CeladonTV** is an Android TV app that runs Twitch's official 10-foot web client and injects
+ad-blocking scripts into it, much like [TizenTubeCobalt](https://github.com/reisxd/TizenTubeCobalt)
+does for YouTube. Instead of re-implementing Twitch natively (like
+[S0undTV](https://github.com/S0und/S0undTV)), it wraps Twitch's own TV app, so the UI, login, and
+player stay Twitch's.
 
-## Architecture
+The name comes from `celadon`, the codename Twitch uses for its Android TV app (see
+[Technical Details](#-technical-details)).
+
+# ⭐ Key Features
+
+- **Twitch's own TV interface**: The same remote-friendly app Twitch ships for Android TV, including sign-in with an activation code
+- **Ad blocking**: Stitched ad segments are filtered out of the stream, with an upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script on top
+- **Self-updating scripts**: The ad-block script is checked against GitHub once a day
+- **Remote-first controls**: D-pad, Back, and media keys work as in the official app
+- **Simple settings**: Toggle ad blocking, pick the script variant, and check for updates from the remote
+
+# 📋 Installation Instructions
+
+## Install on Android TV
+
+1. Install **Downloader** by AFTVnews from the Google Play Store or Amazon Appstore.
+2. Open Downloader and enter the code: `CODE_TBD` <!-- Downloader short code goes here -->
+   or the URL `https://github.com/kenhendricks00/CeladonTV/releases/latest/download/CeladonTV.apk`
+3. Allow Downloader to install unknown apps when Android asks, then install the APK.
+4. Open **CeladonTV** from your apps row.
+
+The URL above always points to the newest release. Updates install over the previous version as
+long as they come from this repository's releases.
+
+## Build from Source
+
+Requirements: JDK 17+ and an Android SDK with platform 36 (`ANDROID_HOME` or `local.properties`).
+Node.js 22+ is needed for the JavaScript tests.
+
+```sh
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew check                # unit tests, JS tests (node --test), lint
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Release builds are signed when `local.properties` defines `celadontv.release.storeFile`,
+`celadontv.release.storePassword`, `celadontv.release.keyAlias`, and
+`celadontv.release.keyPassword`; otherwise `assembleRelease` produces an unsigned APK.
+
+# 🎮 How to Use
+
+| Key | Action |
+| --- | --- |
+| D-pad / OK | Navigate Twitch's UI |
+| Back | Back inside Twitch; exits from the home screen |
+| Long-press Back, Menu, or Settings | Open CeladonTV settings |
+| Play/Pause, Play, Pause, Stop, Fast-forward, Rewind | Player controls |
+
+Settings:
+
+- **Block ads**: Turns both scripts on or off (reloads the page)
+- **Script variant**: `vaft` or `video-swap-new` (reloads the page)
+- **Update scripts automatically**: Daily check against TwitchAdSolutions on GitHub
+- **Check for updates now**: Shows the active script versions and checks immediately
+- **Open-source licenses**: TwitchAdSolutions license
+
+# 🔧 Technical Details
 
 **Shell: Android System WebView, not Cobalt.**
 TizenTubeCobalt is a fork of [youtube/cobalt](https://github.com/youtube/cobalt) (a Chromium-based
 tree built with GN/Ninja) that adds a Mojo interface (`h5vcc_tizentube`) for its scripts. That
 makes sense for YouTube, whose TV app is built for Cobalt. Twitch's TV app is not: Twitch's own
 Android TV client hosts it in a regular Android WebView and talks to it through a
-`window.androidTvNativeHooks` bridge. This app does the same:
+`window.androidTvNativeHooks` bridge. CeladonTV does the same:
 
 - the page gets the exact environment Twitch designed it for (no Chromium fork to build or keep
   in sync, and the WebView engine updates through the Play Store);
@@ -27,23 +90,20 @@ Android TV client hosts it in a regular Android WebView and talks to it through 
 
 **Entry point: `https://celadon.tv.twitch.tv/`.**
 Twitch's TV web app ("Starshot") picks its platform from the first hostname label, using
-platform codenames — `celadon` is Android TV. `android.tv.twitch.tv` also serves Starshot, but as
+platform codenames. `celadon` is Android TV. `android.tv.twitch.tv` also serves Starshot, but as
 the generic web build, which ignores the Android TV back/exit handling.
 
 **Script injection.**
 Scripts are registered with `WebViewCompat.addDocumentStartJavaScript`, limited to the Starshot
-origin, so they run before any page script (TizenTube-style userscript injection). WebViews too
-old for that feature fall back to `evaluateJavascript` when the page starts loading.
+origin, so they run before any page script. WebViews too old for that feature fall back to
+`evaluateJavascript` when the page starts loading.
 
-## Ad blocking
+**Ad blocking.** Two scripts are injected when ad blocking is on:
 
-Two scripts are injected when ad blocking is on:
-
-1. **An upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script** —
+1. **An upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script**:
    `vaft` (default, upstream's recommendation) or `video-swap-new`. Both are bundled in the APK.
    Once a day the app fetches the latest versions from GitHub; a download is kept only if its
    userscript header has the same name and a newer version, and it is used from the next launch.
-   *Settings → Check for updates now* runs the check on demand.
 2. **`starshot-hls-adblock.js`** (this repo). The TwitchAdSolutions scripts strip ads inside the
    Amazon IVS player's web worker, but Starshot on TV platforms plays streams with hls.js on the
    main thread, so those scripts never see the playlists. This adapter filters Twitch's stitched
@@ -58,43 +118,33 @@ Two scripts are injected when ad blocking is on:
    back to live. vaft's "watch a backup stream during the ad" trick is not implemented for
    hls.js yet.
 
-## Remote
+**Debugging.** In debug builds the WebView is inspectable from `chrome://inspect`, and page
+console output is logged under the `CeladonTV` logcat tag.
 
-| Key | Action |
-| --- | --- |
-| D-pad / OK | Navigate Twitch's UI |
-| Back | Back inside Twitch; exits from the home screen |
-| Long-press Back, Menu, or Settings | Open CeladonTV settings |
-| Play/Pause, Play, Pause, Stop, Fast-forward, Rewind | Player controls |
+**Branding.** `branding/generate.py` renders the launcher icon, TV banners, and README artwork
+from one emblem definition.
 
-## Settings
+# 🤝 Contributing
 
-- **Block ads** — turns both scripts on or off (reloads the page).
-- **Script variant** — `vaft` or `video-swap-new` (reloads the page).
-- **Update scripts automatically** — daily check against TwitchAdSolutions on GitHub.
-- **Check for updates now** — shows the active script versions and checks immediately.
-- **Open-source licenses** — TwitchAdSolutions license.
+We welcome contributions! Here's how you can help:
 
-## Building
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-Requirements: JDK 17+ and an Android SDK with platform 36 (`ANDROID_HOME` or `local.properties`).
-Node.js 22+ is needed for the JavaScript tests.
+# ⚠️ Disclaimer
 
-```sh
-./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
-./gradlew check                # unit tests, JS tests (node --test), lint
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
+CeladonTV is not affiliated with Twitch. Blocking ads may be against Twitch's Terms of Service.
 
-In debug builds the WebView is inspectable from `chrome://inspect`, and page console output is
-logged under the `CeladonTV` logcat tag.
+# 📜 License
 
-## Third-party code and licenses
+No license has been chosen yet.
 
-- **TwitchAdSolutions** (`vaft`, `video-swap-new`) — MIT, © TwitchAdSolutions contributors.
-  Bundled unmodified in `app/src/main/assets/scripts/` with its license
-  (`LICENSE-TwitchAdSolutions.txt`), which is also shown in the app.
-- **TizenTubeCobalt** (BSD-3-Clause, Cobalt/Chromium) and **TizenTube** (GPL-3.0) — used as
-  design references only; no code is copied.
-- **AdGuard Extra** — not bundled: the repository publishes no license, and its Twitch module
-  hooks the same IVS worker as vaft, so it would not help with Starshot's hls.js player.
+# 🌟 Credits
+
+- [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) (`vaft`, `video-swap-new`), MIT, © TwitchAdSolutions contributors. Bundled unmodified in `app/src/main/assets/scripts/` with its license (`LICENSE-TwitchAdSolutions.txt`), which is also shown in the app
+- [TizenTubeCobalt](https://github.com/reisxd/TizenTubeCobalt) (BSD-3-Clause) and [TizenTube](https://github.com/reisxd/TizenTube) (GPL-3.0), used as design references only; no code or artwork is copied
+- [AdGuard Extra](https://github.com/AdguardTeam/AdGuardExtra) is not bundled: the repository publishes no license, and its Twitch module hooks the same IVS worker as vaft, so it would not help with Starshot's hls.js player
+- [Kenneth Hendricks](https://github.com/kenhendricks00), the creator of CeladonTV
