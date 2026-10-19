@@ -1,5 +1,11 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
+}
+
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use(::load)
 }
 
 android {
@@ -18,9 +24,21 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        localProperties.getProperty("celadontv.release.storeFile")?.let { storeFilePath ->
+            create("release") {
+                storeFile = file(storeFilePath)
+                storePassword = localProperties.getProperty("celadontv.release.storePassword")
+                keyAlias = localProperties.getProperty("celadontv.release.keyAlias")
+                keyPassword = localProperties.getProperty("celadontv.release.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
