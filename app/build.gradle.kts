@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.kenhendricks00.celadontv"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.2.2"
     }
 
     buildFeatures {

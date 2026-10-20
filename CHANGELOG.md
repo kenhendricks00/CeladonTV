@@ -1,13 +1,17 @@
 # Changelog
 
-## Unreleased (0.2.1)
+## Unreleased (0.2.2)
 
 #### **🐞 Bug Fixes**
+- Streams no longer freeze on the loading spinner after a mid-roll ad. Twitch only tags an ad on its first segment, so once that segment left the playlist the rest of a long ad (30 seconds or more) slipped past CeladonTV's ad filter, and Twitch's player lost its place in the stream. This happened with either script variant.
+- An ad break shorter than about 30 seconds no longer freezes the picture for longer than the break itself; playback resumes as soon as the stream comes back.
+- A preroll that starts playing when joining a channel now always plays through into the stream, instead of occasionally stalling at the switch to live.
 - Joining a channel during a preroll ad no longer ends in "An error occurred while playing this content". CeladonTV's ad filter left the player with nothing to play until the preroll ended, and Twitch's player gave up first. The preroll now plays, and ad breaks after the stream has started are still filtered.
 - The large gray play button that Android's WebView shows before a video starts no longer appears.
 
 #### **⚠️ Known Limitations**
 - Prerolls when joining a channel are shown rather than blocked.
+- During a mid-roll ad break the picture holds on the last frame of the stream until the break ends.
 
 ## v0.2.0 (10/20/2026)
 
