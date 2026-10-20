@@ -94,6 +94,27 @@ test('keeps only the first live run when an ad break sits mid-window', () => {
     assert.equal(header(result.playlist, 'EXT-X-MEDIA-SEQUENCE'), 100);
 });
 
+test('keeps filtering an ad after its stitched-ad tag slides out of the window', () => {
+    // A 16-segment window and a 30-second (16-segment) mid-roll at 41..56. Twitch only puts
+    // the stitched-ad DATERANGE above an ad's first segment, so once 41 slides out the window
+    // is ads (and then ads and live) with nothing but the segment titles to tell them apart.
+    // Handing those ads to hls.js put the playhead hours off the live timeline.
+    const url = 'https://use12.playlist.ttvnw.net/v1/playlist/sliding-30s-ad.m3u8';
+    const isAd = (n) => n >= 41 && n < 57;
+    for (let edge = 30; edge <= 80; edge++) {
+        const first = edge - 15;
+        const segments = [];
+        for (let n = first; n <= edge; n++) segments.push({ n, ad: isAd(n), daterange: n === 41 ? AD_DATERANGE : undefined });
+        const out = filterPlaylist(url, playlist({ sequence: first, segments }));
+        const uris = segmentUris(out);
+        assert.ok(uris.length > 0 && uris.every((u) => u.startsWith('live-')), `no ads handed to the player at edge ${edge}: ${uris}`);
+        const newest = Number(uris[uris.length - 1].match(/\d+/)[0]);
+        if (isAd(edge)) assert.equal(newest, 40, `holds the last live segment before the break at edge ${edge}`);
+        else assert.equal(newest, edge, `playlist reaches the live edge at ${edge}`);
+        assert.equal(header(out, 'EXT-X-MEDIA-SEQUENCE'), Number(uris[0].match(/\d+/)[0]));
+    }
+});
+
 test('treats SCTE-35 cue-out ranges as ads even when titled live', () => {
     const input = playlist({ segments: [{ n: 1 }] }) +
         '#EXT-X-CUE-OUT:30\n#EXTINF:2.000,live\nhttps://video-edge.example.ttvnw.net/v1/segment/cue-2.ts\n';

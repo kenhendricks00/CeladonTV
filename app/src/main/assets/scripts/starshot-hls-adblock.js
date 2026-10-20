@@ -14,8 +14,18 @@
     const SEGMENT_TAG = /^#(EXTINF|EXT-X-PROGRAM-DATE-TIME|EXT-X-DISCONTINUITY(?!-SEQUENCE)|EXT-X-DATERANGE|EXT-X-BYTERANGE|EXT-X-KEY|EXT-X-MAP|EXT-X-GAP|EXT-X-CUE)/;
     const LOG_PREFIX = '[CeladonTV]';
 
+    // Twitch titles live segments "live" and stitched ads after their source ("Amazon|...",
+    // "DCM|..."); VOD segments have no title.
+    const AD_TITLE = /^#EXTINF:[^,\n]*,(?!live\s*$)\S/m;
+
     function hasAdTags(text) {
         return AD_SIGNIFIERS.some((s) => text.includes(s));
+    }
+
+    // The stitched-ad DATERANGE only sits above an ad's first segment, so a sliding window
+    // can hold the rest of an ad without it; the segment titles still give the ad away.
+    function hasAds(text) {
+        return hasAdTags(text) || AD_TITLE.test(text);
     }
 
     function parse(playlist) {
@@ -64,7 +74,7 @@
     // every kept segment's media sequence number unchanged, which hls.js relies on.
     // `complete` is false when ads reach the live edge (nothing usable to append).
     function stripAds(playlist) {
-        if (!hasAdTags(playlist)) return { playlist, removed: 0, complete: true };
+        if (!hasAds(playlist)) return { playlist, removed: 0, complete: true };
         const { header, segments, trailer } = parse(playlist);
         let lead = 0;
         while (lead < segments.length && segments[lead].isAd) lead++;
