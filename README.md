@@ -25,7 +25,7 @@ The name comes from `celadon`, the codename Twitch uses for its Android TV app (
 # ⭐ Key Features
 
 - **Twitch's own TV interface**: The same remote-friendly app Twitch ships for Android TV, including sign-in with an activation code
-- **Ad blocking**: Stitched ad segments are filtered out of the stream, with an upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script on top
+- **Ad blocking**: Stitched ad segments are filtered out of the stream, and during an ad break the stream keeps playing from an ad-free backup when Twitch has one, with an upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script on top
 - **Self-updating scripts**: The ad-block script is checked against GitHub once a day
 - **Remote-first controls**: D-pad, Back, and media keys work as in the official app
 - **Simple settings**: Toggle ad blocking, pick the script variant, and check for updates from the remote
@@ -99,25 +99,33 @@ Scripts are registered with `WebViewCompat.addDocumentStartJavaScript`, limited 
 origin, so they run before any page script. WebViews too old for that feature fall back to
 `evaluateJavascript` when the page starts loading.
 
-**Ad blocking.** Two scripts are injected when ad blocking is on:
+**Ad blocking.** Three scripts are injected when ad blocking is on, in this order:
 
-1. **An upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script**:
-   `vaft` (default, upstream's recommendation) or `video-swap-new`. Both are bundled in the APK.
-   Once a day the app fetches the latest versions from GitHub; a download is kept only if its
-   userscript header has the same name and a newer version, and it is used from the next launch.
-2. **`starshot-hls-adblock.js`** (this repo). The TwitchAdSolutions scripts strip ads inside the
+1. **`starshot-hls-adblock.js`** (this repo). The TwitchAdSolutions scripts strip ads inside the
    Amazon IVS player's web worker, but Starshot on TV platforms plays streams with hls.js on the
    main thread, so those scripts never see the playlists. This adapter filters Twitch's stitched
    ad segments out of media playlists as hls.js loads them:
+   - during an ad break it fetches the same broadcast with another player type (`embed`,
+     `popout`, `site`, ...), using Starshot's own client ID, and splices that stream's segments in
+     place of the ads. Every player type is cut from the same transcode, so at a given
+     `PROGRAM-DATE-TIME` the segments are identical; they are numbered on one grid by broadcast
+     time so hls.js stays on a single timeline. The first two backup sessions are opened when a
+     stream starts, so they are past their own prerolls by the first mid-roll;
+   - when no backup is free of ads, the last ad-free playlist is served unchanged while ads
+     occupy the live edge, so the player waits on the last frame instead of playing the ad;
    - leading ad segments are dropped and `EXT-X-MEDIA-SEQUENCE` / `EXT-X-DISCONTINUITY-SEQUENCE`
-     are advanced so hls.js keeps a consistent timeline;
-   - while ads occupy the live edge, the last ad-free playlist is served unchanged, so the
-     player waits instead of playing the ad;
-   - ad `DATERANGE` tags are removed, so Starshot doesn't show its ad overlay.
+     are advanced so hls.js keeps a consistent timeline; ad `DATERANGE` tags are removed, so
+     Starshot doesn't show its ad overlay.
 
-   In practice an ad break looks like a pause on the last frame, after which the stream jumps
-   back to live. vaft's "watch a backup stream during the ad" trick is not implemented for
-   hls.js yet.
+   It goes first so its own requests use the browser's `fetch`: the TwitchAdSolutions scripts
+   rewrite access-token requests made through theirs.
+2. **`celadontv-playback-guard.js`** (this repo). Shows a small "Blocking ads" notice in the
+   top-left corner during a break, and reopens the channel if the player stalls for 20 seconds
+   outside a break the adapter is holding (at most once every 3 minutes).
+3. **An upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script**:
+   `vaft` (default, upstream's recommendation) or `video-swap-new`. Both are bundled in the APK.
+   Once a day the app fetches the latest versions from GitHub; a download is kept only if its
+   userscript header has the same name and a newer version, and it is used from the next launch.
 
 **Debugging.** In debug builds the WebView is inspectable from `chrome://inspect`, and page
 console output is logged under the `CeladonTV` logcat tag.

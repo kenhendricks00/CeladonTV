@@ -10,10 +10,11 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-/** Wires the bundled/updated upstream scripts and the hls.js adapter to app settings. */
+/** Wires the bundled/updated upstream scripts, the hls.js adapter and the playback guard to app settings. */
 object AdBlock {
     private const val TAG = "AdBlock"
     private const val ADAPTER = "starshot-hls-adblock.js"
+    private const val GUARD = "celadontv-playback-guard.js"
     private val UPDATE_INTERVAL_MS = TimeUnit.HOURS.toMillis(24)
     private val executor = Executors.newSingleThreadExecutor()
 
@@ -23,7 +24,7 @@ object AdBlock {
         if (!settings.adBlockEnabled) return emptyList()
         // The adapter goes first so its backup-stream requests use the browser's own fetch:
         // the TwitchAdSolutions scripts rewrite access-token requests made through theirs.
-        return listOf(context.readScriptAsset(ADAPTER), store(context).load(settings.variant).source)
+        return listOf(context.readScriptAsset(ADAPTER), context.readScriptAsset(GUARD), store(context).load(settings.variant).source)
     }
 
     fun update(context: Context, onDone: (Map<ScriptVariant, ScriptUpdater.Outcome>) -> Unit) {
