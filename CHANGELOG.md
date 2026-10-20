@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased (0.2.1)
+
+#### **🐞 Bug Fixes**
+- Joining a channel during a preroll ad no longer ends in "An error occurred while playing this content". CeladonTV's ad filter left the player with nothing to play until the preroll ended, and Twitch's player gave up first. The preroll now plays, and ad breaks after the stream has started are still filtered.
+- The large gray play button that Android's WebView shows before a video starts no longer appears.
+
+#### **⚠️ Known Limitations**
+- Prerolls when joining a channel are shown rather than blocked.
+
 ## v0.2.0 (10/20/2026)
 
 #### **✨ Features**
