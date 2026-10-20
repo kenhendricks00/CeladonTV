@@ -7,9 +7,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import io.github.kenhendricks00.celadontv.AdBlock
+import io.github.kenhendricks00.celadontv.BuildConfig
 import io.github.kenhendricks00.celadontv.R
 import io.github.kenhendricks00.celadontv.scripts.ScriptUpdater.Outcome
 import io.github.kenhendricks00.celadontv.scripts.ScriptVariant
+import io.github.kenhendricks00.celadontv.update.AppUpdateFlow
 
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,12 +23,22 @@ class SettingsActivity : AppCompatActivity() {
 
     class SettingsFragment : PreferenceFragmentCompat() {
         private val updateNow get() = requirePreference(AppSettings.KEY_UPDATE_NOW)
+        private val appUpdates by lazy { AppUpdateFlow(requireActivity()) }
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.preferences, rootKey)
             updateNow.setOnPreferenceClickListener { runUpdate(); true }
             requirePreference(KEY_LICENSES).setOnPreferenceClickListener { showLicenses(); true }
+            requirePreference(AppSettings.KEY_CHECK_APP_UPDATE).apply {
+                summary = getString(R.string.pref_check_app_update_summary, BuildConfig.VERSION_NAME)
+                setOnPreferenceClickListener { appUpdates.checkNow(); true }
+            }
             showVersions()
+        }
+
+        override fun onResume() {
+            super.onResume()
+            appUpdates.onResume()
         }
 
         private fun showVersions() {

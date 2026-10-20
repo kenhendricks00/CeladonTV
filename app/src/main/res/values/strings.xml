@@ -17,6 +17,27 @@
     <string name="update_up_to_date">%1$s %2$s is up to date</string>
     <string name="update_failed">%1$s update failed: %2$s</string>
 
+    <string name="pref_category_app_updates">App updates</string>
+    <string name="pref_app_update_check">Check for app updates automatically</string>
+    <string name="pref_app_update_check_summary">Look for a new CeladonTV release on GitHub once a day</string>
+    <string name="pref_check_app_update">Check for app updates</string>
+    <string name="pref_check_app_update_summary">Version %1$s</string>
+
+    <string name="app_update_checking">Checking for CeladonTV updates…</string>
+    <string name="app_update_up_to_date">CeladonTV is up to date</string>
+    <string name="app_update_check_failed">Couldn\'t check for updates. Try again later.</string>
+    <string name="app_update_available">CeladonTV %1$s is available</string>
+    <string name="app_update_no_notes">A new version of CeladonTV is ready to install.</string>
+    <string name="app_update_update">Update</string>
+    <string name="app_update_later">Later</string>
+    <string name="app_update_downloading">Downloading CeladonTV %1$s…</string>
+    <string name="app_update_failed_title">Update failed</string>
+    <string name="app_update_failed">%1$s</string>
+    <string name="app_update_permission_title">Allow CeladonTV to install updates</string>
+    <string name="app_update_permission_message">Android needs your permission before CeladonTV can install its own updates. Turn on \"Allow from this source\" for CeladonTV, then come back and the update will continue.</string>
+    <string name="app_update_open_settings">Open settings</string>
+    <string name="app_update_permission_manual">This TV doesn\'t have a settings page for installing unknown apps. Allow CeladonTV to install apps in your TV\'s security settings, then try again.</string>
+
     <string name="pref_category_about">About</string>
     <string name="pref_licenses">Open-source licenses</string>
     <string name="pref_licenses_summary">Ad-block scripts from TwitchAdSolutions (MIT). Not affiliated with Twitch.</string>

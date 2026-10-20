@@ -30,6 +30,18 @@
             app:title="@string/pref_update_now" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_category_app_updates">
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="app_update_check"
+            app:summary="@string/pref_app_update_check_summary"
+            app:title="@string/pref_app_update_check" />
+
+        <Preference
+            app:key="check_app_update"
+            app:title="@string/pref_check_app_update" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/pref_category_about">
         <Preference
             app:key="licenses"

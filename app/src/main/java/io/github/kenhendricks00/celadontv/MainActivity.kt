@@ -15,11 +15,13 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import io.github.kenhendricks00.celadontv.settings.AppSettings
 import io.github.kenhendricks00.celadontv.settings.SettingsActivity
+import io.github.kenhendricks00.celadontv.update.AppUpdateFlow
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var injector: ScriptInjector
     private lateinit var settings: AppSettings
+    private lateinit var appUpdates: AppUpdateFlow
 
     private var backLongPressed = false
 
@@ -48,11 +50,14 @@ class MainActivity : Activity() {
         webView.loadUrl(TwitchTv.HOME_URL)
         webView.requestFocus()
         AdBlock.updateIfDue(this, settings)
+        appUpdates = AppUpdateFlow(this)
+        appUpdates.checkIfDue()
     }
 
     override fun onResume() {
         super.onResume()
         webView.onResume()
+        appUpdates.onResume()
         if (injector.apply(pageScripts())) webView.reload()
     }
 

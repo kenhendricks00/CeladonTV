@@ -1,6 +1,7 @@
 [versions]
 agp = "9.4.1"
 appcompat = "1.8.0"
+json = "20260814"
 junit = "4.13.2"
 preference = "1.2.1"
 webkit = "1.17.1"
@@ -9,6 +10,7 @@ webkit = "1.17.1"
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-preference = { module = "androidx.preference:preference", version.ref = "preference" }
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
+json = { module = "org.json:json", version.ref = "json" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]

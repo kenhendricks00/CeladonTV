@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.preference)
     implementation(libs.androidx.webkit)
+    testImplementation(libs.json)
     testImplementation(libs.junit)
 }
 
