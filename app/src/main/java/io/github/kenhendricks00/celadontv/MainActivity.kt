@@ -7,12 +7,15 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.ProgressBar
 import io.github.kenhendricks00.celadontv.settings.AppSettings
 import io.github.kenhendricks00.celadontv.settings.SettingsActivity
 import io.github.kenhendricks00.celadontv.update.AppUpdateFlow
@@ -22,6 +25,8 @@ class MainActivity : Activity() {
     private lateinit var injector: ScriptInjector
     private lateinit var settings: AppSettings
     private lateinit var appUpdates: AppUpdateFlow
+    private lateinit var loading: View
+    private lateinit var loadingProgress: ProgressBar
 
     private var backLongPressed = false
 
@@ -44,7 +49,10 @@ class MainActivity : Activity() {
             )
             addJavascriptInterface(SettingsBridge(::openSettingsFromPage), SettingsBridge.JS_NAME)
         }
-        setContentView(webView)
+        setContentView(R.layout.activity_main)
+        findViewById<FrameLayout>(R.id.root).addView(webView, 0)
+        loading = findViewById(R.id.loading)
+        loadingProgress = findViewById(R.id.loading_progress)
         injector = ScriptInjector(webView)
         injector.apply(pageScripts())
         webView.loadUrl(TwitchTv.HOME_URL)
@@ -113,8 +121,18 @@ class MainActivity : Activity() {
         if (webView.url?.startsWith(TwitchTv.ORIGIN) == true) openSettings()
     }
 
+    /** Fades out the loading screen once Twitch's page has loaded. */
+    private fun hideLoading() {
+        if (loading.visibility != View.VISIBLE) return
+        loading.animate().alpha(0f).setDuration(250).withEndAction { loading.visibility = View.GONE }
+    }
+
     private inner class Client : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) = injector.onPageStarted(url)
+
+        override fun onPageFinished(view: WebView, url: String) {
+            if (url.startsWith(TwitchTv.ORIGIN)) hideLoading()
+        }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
             request.url.scheme != "https" && request.url.scheme != "http"
@@ -126,7 +144,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private class ChromeClient : WebChromeClient() {
+    private inner class ChromeClient : WebChromeClient() {
+        override fun onProgressChanged(view: WebView, newProgress: Int) {
+            loadingProgress.progress = newProgress
+        }
+
         override fun onConsoleMessage(message: ConsoleMessage): Boolean {
             if (BuildConfig.DEBUG) Log.d(TAG, "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
             return true
