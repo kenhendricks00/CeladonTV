@@ -3,6 +3,10 @@
     <string name="app_name">CeladonTV</string>
     <string name="settings_title">CeladonTV settings</string>
 
+    <string name="offline_title">Can\'t reach Twitch</string>
+    <string name="offline_message">Check that your TV is connected to the internet. CeladonTV will try again as soon as the connection is back.</string>
+    <string name="offline_retry">Retry</string>
+
     <string name="pref_category_ad_block">Ad blocking</string>
     <string name="pref_ad_block">Block ads</string>
     <string name="pref_ad_block_summary">Inject the TwitchAdSolutions script and the hls.js ad-segment filter</string>

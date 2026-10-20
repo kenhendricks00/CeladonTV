@@ -31,4 +31,55 @@
             android:progressBackgroundTint="@color/tw_surface"
             android:progressTint="@color/tw_purple" />
     </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/offline"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/tw_background"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="240dp"
+            android:layout_height="135dp"
+            android:contentDescription="@string/app_name"
+            android:src="@drawable/banner" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/offline_title"
+            android:textColor="@color/tw_text"
+            android:textSize="22sp" />
+
+        <TextView
+            android:layout_width="480dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.2"
+            android:text="@string/offline_message"
+            android:textColor="@color/tw_text_muted"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/offline_retry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/tw_row_background"
+            android:fontFamily="sans-serif-medium"
+            android:minWidth="200dp"
+            android:minHeight="60dp"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:text="@string/offline_retry"
+            android:textAllCaps="false"
+            android:textColor="@color/tw_row_text"
+            android:textSize="16sp" />
+    </LinearLayout>
 </FrameLayout>

@@ -3,6 +3,8 @@ package io.github.kenhendricks00.celadontv
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
@@ -11,9 +13,11 @@ import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import io.github.kenhendricks00.celadontv.settings.AppSettings
@@ -27,6 +31,17 @@ class MainActivity : Activity() {
     private lateinit var appUpdates: AppUpdateFlow
     private lateinit var loading: View
     private lateinit var loadingProgress: ProgressBar
+    private lateinit var offline: View
+    private val connectivity by lazy { getSystemService(ConnectivityManager::class.java) }
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = retryIfOffline()
+
+        override fun onBlockedStatusChanged(network: Network, blocked: Boolean) {
+            if (!blocked) retryIfOffline()
+        }
+
+        private fun retryIfOffline() = runOnUiThread { if (isOffline()) retry() }
+    }
 
     private var backLongPressed = false
 
@@ -53,6 +68,9 @@ class MainActivity : Activity() {
         findViewById<FrameLayout>(R.id.root).addView(webView, 0)
         loading = findViewById(R.id.loading)
         loadingProgress = findViewById(R.id.loading_progress)
+        offline = findViewById(R.id.offline)
+        findViewById<Button>(R.id.offline_retry).setOnClickListener { retry() }
+        connectivity.registerDefaultNetworkCallback(networkCallback)
         injector = ScriptInjector(webView)
         injector.apply(pageScripts())
         webView.loadUrl(TwitchTv.HOME_URL)
@@ -75,6 +93,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        connectivity.unregisterNetworkCallback(networkCallback)
         webView.destroy()
         super.onDestroy()
     }
@@ -106,7 +125,7 @@ class MainActivity : Activity() {
                 }
             }
             KeyEvent.ACTION_UP -> if (!backLongPressed && !event.isCanceled) {
-                webView.evaluateJavascript(TwitchTv.BACK_SCRIPT, null)
+                if (isOffline()) finish() else webView.evaluateJavascript(TwitchTv.BACK_SCRIPT, null)
             }
         }
         return true
@@ -127,11 +146,36 @@ class MainActivity : Activity() {
         loading.animate().alpha(0f).setDuration(250).withEndAction { loading.visibility = View.GONE }
     }
 
+    private fun isOffline() = offline.visibility == View.VISIBLE
+
+    /** Replaces the WebView's error page; the WebView is hidden so D-pad focus stays on Retry. */
+    private fun showOffline() {
+        loading.animate().cancel()
+        loading.visibility = View.GONE
+        webView.visibility = View.INVISIBLE
+        offline.visibility = View.VISIBLE
+        findViewById<Button>(R.id.offline_retry).requestFocus()
+    }
+
+    private fun retry() {
+        offline.visibility = View.GONE
+        loadingProgress.progress = 0
+        loading.alpha = 1f
+        loading.visibility = View.VISIBLE
+        webView.visibility = View.VISIBLE
+        webView.requestFocus()
+        webView.reload()
+    }
+
     private inner class Client : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) = injector.onPageStarted(url)
 
         override fun onPageFinished(view: WebView, url: String) {
             if (url.startsWith(TwitchTv.ORIGIN)) hideLoading()
+        }
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            if (request.isForMainFrame) showOffline()
         }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
