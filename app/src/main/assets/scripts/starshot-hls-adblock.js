@@ -69,32 +69,42 @@
         return shifted;
     }
 
-    // Keeps the contiguous run of live segments that follows any leading ads and
-    // drops everything from the next ad onwards. Removing only from the ends keeps
-    // every kept segment's media sequence number unchanged, which hls.js relies on.
+    // Keeps the run of segments at the live edge: everything after the last ad, or,
+    // while an ad break occupies the edge, the run just before it. A break shorter than
+    // the window ends while live from before it is still in the window (and a session
+    // playlist keeps every segment for its first minute); skipping to the run after the
+    // break resumes playback as soon as live returns, not once the old live slides out.
+    // Removing only from the ends keeps every kept segment's media sequence number
+    // unchanged, which hls.js relies on.
     // `complete` is false when ads reach the live edge (nothing usable to append).
     function stripAds(playlist) {
         if (!hasAds(playlist)) return { playlist, removed: 0, complete: true };
         const { header, segments, trailer } = parse(playlist);
-        let lead = 0;
-        while (lead < segments.length && segments[lead].isAd) lead++;
-        let end = lead;
-        while (end < segments.length && !segments[end].isAd) end++;
-        const kept = segments.slice(lead, end);
-        const droppedDiscontinuities = segments
-            .slice(0, lead)
-            .reduce((n, s) => n + s.tags.filter((t) => t === '#EXT-X-DISCONTINUITY').length, 0);
-        let newHeader = shiftHeader(header, 'EXT-X-MEDIA-SEQUENCE', lead);
+        const isAd = segments.map((s) => s.isAd);
+        let end = segments.length;
+        while (end > 0 && isAd[end - 1]) end--;
+        let start = end;
+        while (start > 0 && !isAd[start - 1]) start--;
+        if (start === 0 && end === segments.length) {
+            return { playlist, removed: 0, kept: segments.length, complete: true };
+        }
+        const dropped = segments.slice(0, start);
+        const kept = segments.slice(start, end).map((s) => ({ ...s, tags: s.tags.filter((t) => !hasAdTags(t)) }));
+        // Each segment uses the most recent init segment above it, which may be among those dropped.
+        const map = dropped.flatMap((s) => s.tags).filter((t) => t.startsWith('#EXT-X-MAP')).pop();
+        if (map && kept.length > 0 && !kept[0].tags.some((t) => t.startsWith('#EXT-X-MAP'))) {
+            kept[0].tags = [map, ...kept[0].tags];
+        }
+        const droppedDiscontinuities = dropped.reduce((n, s) => n + s.tags.filter((t) => t === '#EXT-X-DISCONTINUITY').length, 0);
+        let newHeader = shiftHeader(header, 'EXT-X-MEDIA-SEQUENCE', start);
         newHeader = shiftHeader(newHeader, 'EXT-X-DISCONTINUITY-SEQUENCE', droppedDiscontinuities);
         const lines = newHeader.slice();
-        for (const s of kept) {
-            lines.push(...s.tags.filter((t) => !hasAdTags(t)), s.uri);
-        }
+        for (const s of kept) lines.push(...s.tags, s.uri);
         const truncated = end < segments.length;
         lines.push(...trailer.filter((t) => !truncated || t.startsWith('#EXT-X-ENDLIST')));
         return {
             playlist: lines.join('\n') + '\n',
-            removed: segments.length - kept.length,
+            removed: isAd.filter(Boolean).length,
             kept: kept.length,
             complete: kept.length > 0 && !truncated,
         };

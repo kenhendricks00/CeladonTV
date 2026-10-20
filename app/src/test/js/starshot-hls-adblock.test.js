@@ -85,34 +85,24 @@ test('adds a discontinuity sequence when leading ads carried discontinuities', (
     assert.equal(header(stripAds(input).playlist, 'EXT-X-DISCONTINUITY-SEQUENCE'), 1);
 });
 
-test('keeps only the first live run when an ad break sits mid-window', () => {
+test('skips to the live run after an ad break that sits mid-window', () => {
     const input = playlist({
         segments: [{ n: 1 }, { n: 2, ad: true, daterange: AD_DATERANGE }, { n: 3 }],
     });
     const result = stripAds(input);
-    assert.deepEqual(segmentUris(result.playlist), ['live-1.ts']);
-    assert.equal(header(result.playlist, 'EXT-X-MEDIA-SEQUENCE'), 100);
+    assert.deepEqual(segmentUris(result.playlist), ['live-3.ts']);
+    assert.equal(header(result.playlist, 'EXT-X-MEDIA-SEQUENCE'), 102);
+    assert.equal(result.complete, true);
 });
 
-test('keeps filtering an ad after its stitched-ad tag slides out of the window', () => {
-    // A 16-segment window and a 30-second (16-segment) mid-roll at 41..56. Twitch only puts
-    // the stitched-ad DATERANGE above an ad's first segment, so once 41 slides out the window
-    // is ads (and then ads and live) with nothing but the segment titles to tell them apart.
-    // Handing those ads to hls.js put the playhead hours off the live timeline.
-    const url = 'https://use12.playlist.ttvnw.net/v1/playlist/sliding-30s-ad.m3u8';
-    const isAd = (n) => n >= 41 && n < 57;
-    for (let edge = 30; edge <= 80; edge++) {
-        const first = edge - 15;
-        const segments = [];
-        for (let n = first; n <= edge; n++) segments.push({ n, ad: isAd(n), daterange: n === 41 ? AD_DATERANGE : undefined });
-        const out = filterPlaylist(url, playlist({ sequence: first, segments }));
-        const uris = segmentUris(out);
-        assert.ok(uris.length > 0 && uris.every((u) => u.startsWith('live-')), `no ads handed to the player at edge ${edge}: ${uris}`);
-        const newest = Number(uris[uris.length - 1].match(/\d+/)[0]);
-        if (isAd(edge)) assert.equal(newest, 40, `holds the last live segment before the break at edge ${edge}`);
-        else assert.equal(newest, edge, `playlist reaches the live edge at ${edge}`);
-        assert.equal(header(out, 'EXT-X-MEDIA-SEQUENCE'), Number(uris[0].match(/\d+/)[0]));
-    }
+test('keeps the init segment when the segments it sat above are dropped', () => {
+    const input = playlist({
+        segments: [{ n: 1, ad: true, daterange: AD_DATERANGE }, { n: 2, ad: true }, { n: 3 }, { n: 4 }],
+    }).replace('#EXT-X-DATERANGE', '#EXT-X-MAP:URI="https://video-edge.example.ttvnw.net/v1/segment/init.mp4"\n#EXT-X-DATERANGE');
+    const lines = stripAds(input).playlist.split('\n');
+    const map = lines.findIndex((l) => l.startsWith('#EXT-X-MAP:'));
+    assert.ok(map >= 0, 'init segment kept');
+    assert.ok(map < lines.findIndex((l) => l.endsWith('live-3.ts')), 'init segment comes before the first kept segment');
 });
 
 test('treats SCTE-35 cue-out ranges as ads even when titled live', () => {
@@ -184,4 +174,37 @@ test('never hands the player a media playlist without segments', () => {
             assert.ok(segmentUris(out).length > 0, `empty playlist for pattern ${mask.toString(2).padStart(length, '0')}`);
         }
     }
+});
+
+// Twitch's session playlists: numbered from 0 when the viewer joins, keeping every segment
+// for the first minute, and with no discontinuity where ads switch to live (only the
+// segment titles change).
+function sessionPlaylist(last, ads, session = '42') {
+    const segments = [];
+    for (let n = 0; n <= last; n++) {
+        const ad = ads.some(([from, to]) => n >= from && n < to);
+        segments.push({ n, ad, daterange: ads.some(([from]) => n === from) ? AD_DATERANGE : undefined });
+    }
+    return playlist({ sequence: 0, segments }).replace(
+        '#EXT-X-MEDIA-SEQUENCE:0',
+        `#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-DATERANGE:ID="playlist-session-1",CLASS="twitch-session",START-DATE="2026-10-20T00:00:00Z",END-ON-NEXT=YES,X-TV-TWITCH-SESSIONID="${session}"`,
+    );
+}
+
+test('moves on to live after a mid-roll in a session playlist', () => {
+    // A 10-segment break at 15..24 while the player reloads the playlist every segment.
+    const url = 'https://use12.playlist.ttvnw.net/v1/playlist/session-midroll.m3u8';
+    let lastSegment = -1;
+    let stuck = 0;
+    for (let edge = 10; edge <= 40; edge++) {
+        const uris = segmentUris(filterPlaylist(url, sessionPlaylist(edge, [[15, 25]], 'midroll')));
+        assert.ok(uris.every((u) => u.startsWith('live-')), `no ads handed to the player at edge ${edge}`);
+        const newest = Number(uris[uris.length - 1].match(/\d+/)[0]);
+        stuck = newest === lastSegment ? stuck + 1 : 0;
+        lastSegment = newest;
+        if (edge >= 25) assert.equal(newest, edge, `playlist reaches the live edge at ${edge}`);
+    }
+    assert.equal(stuck, 0);
+    const after = filterPlaylist(url, sessionPlaylist(40, [[15, 25]], 'midroll'));
+    assert.equal(header(after, 'EXT-X-MEDIA-SEQUENCE'), 25);
 });
