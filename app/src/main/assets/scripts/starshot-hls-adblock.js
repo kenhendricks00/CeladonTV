@@ -85,6 +85,7 @@
         return {
             playlist: lines.join('\n') + '\n',
             removed: segments.length - kept.length,
+            kept: kept.length,
             complete: kept.length > 0 && !truncated,
         };
     }
@@ -98,6 +99,10 @@
     // trimmed window instead makes the player seek back and replay the last seconds.
     const lastLive = new Map();
 
+    // hls.js is never handed a media playlist without segments: Twitch's player gives up
+    // (about 20s) if playback can't start, which is shorter than a preroll. With no live
+    // playlist to hold yet (joining during a preroll), the ads are passed through.
+
     function filterPlaylist(url, text) {
         if (typeof text !== 'string' || !text.includes('#EXTINF')) return text;
         const result = stripAds(text);
@@ -106,8 +111,14 @@
             if (result.removed > 0) console.log(LOG_PREFIX + ' removed ' + result.removed + ' ad segment(s)');
             return result.playlist;
         }
-        console.log(LOG_PREFIX + ' ad break: holding last live playlist');
-        return lastLive.get(url) || result.playlist;
+        const held = lastLive.get(url);
+        if (held) {
+            console.log(LOG_PREFIX + ' ad break: holding last live playlist');
+            return held;
+        }
+        if (result.kept > 0) return result.playlist;
+        console.log(LOG_PREFIX + ' ad break before any live segments: letting it play');
+        return text;
     }
 
     function hookXhr(XHR) {

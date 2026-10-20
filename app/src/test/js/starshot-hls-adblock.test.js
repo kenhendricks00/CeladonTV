@@ -131,3 +131,36 @@ test('only matches Twitch playlist URLs', () => {
     assert.ok(!isPlaylistUrl('https://video-edge.ttvnw.net/v1/segment/abc.ts'));
     assert.ok(!isPlaylistUrl('https://evil.example/ttvnw.net/x.m3u8'));
 });
+
+test('lets a preroll play when joining before any live segment exists', () => {
+    // Shape of a real join on sips_: the session playlist starts at sequence 0 with the preroll.
+    const url = 'https://use16.playlist.ttvnw.net/v1/playlist/preroll.m3u8';
+    const preroll = playlist({
+        sequence: 0,
+        segments: [{ n: 0, ad: true, daterange: AD_DATERANGE }, { n: 1, ad: true }, { n: 2, ad: true }],
+    });
+    assert.equal(filterPlaylist(url, preroll), preroll, 'nothing live to hold yet, so the preroll is passed through');
+
+    const prerollEnding = playlist({
+        sequence: 1,
+        segments: [{ n: 1, ad: true, daterange: AD_DATERANGE }, { n: 2, ad: true }, { n: 3, discontinuity: true }, { n: 4 }],
+    });
+    const resumed = filterPlaylist(url, prerollEnding);
+    assert.deepEqual(segmentUris(resumed), ['live-3.ts', 'live-4.ts'], 'live segments take over as soon as they exist');
+    assert.equal(header(resumed, 'EXT-X-MEDIA-SEQUENCE'), 3);
+
+    const midroll = playlist({ sequence: 5, segments: [{ n: 5, ad: true, daterange: AD_DATERANGE }, { n: 6, ad: true }] });
+    assert.equal(filterPlaylist(url, midroll), resumed, 'later breaks still hold the last live playlist');
+});
+
+test('never hands the player a media playlist without segments', () => {
+    let n = 0;
+    for (let length = 1; length <= 6; length++) {
+        for (let mask = 0; mask < 1 << length; mask++) {
+            const segments = Array.from({ length }, (_, i) => ({ n: i, ad: Boolean(mask & (1 << i)), daterange: i === 0 && mask & 1 ? AD_DATERANGE : undefined }));
+            const input = playlist({ sequence: 10, segments });
+            const out = filterPlaylist(`https://use16.playlist.ttvnw.net/v1/playlist/fresh-${n++}.m3u8`, input);
+            assert.ok(segmentUris(out).length > 0, `empty playlist for pattern ${mask.toString(2).padStart(length, '0')}`);
+        }
+    }
+});

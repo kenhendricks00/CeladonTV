@@ -193,6 +193,9 @@ class MainActivity : Activity() {
             loadingProgress.progress = newProgress
         }
 
+        /** Replaces WebView's default poster (a large gray play button) shown before a video starts. */
+        override fun getDefaultVideoPoster(): Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+
         override fun onConsoleMessage(message: ConsoleMessage): Boolean {
             if (BuildConfig.DEBUG) Log.d(TAG, "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
             return true
