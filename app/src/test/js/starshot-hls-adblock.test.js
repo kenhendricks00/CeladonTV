@@ -32,7 +32,8 @@ function header(text, tag) {
 
 test('leaves playlists without ad markers untouched', () => {
     const input = playlist({ segments: [{ n: 1 }, { n: 2 }], trailer: ['#EXT-X-TWITCH-PREFETCH:https://x/next.ts'] });
-    assert.deepEqual(stripAds(input), { playlist: input, removed: 0, complete: true });
+    const { playlist: out, removed, complete } = stripAds(input);
+    assert.deepEqual({ out, removed, complete }, { out: input, removed: 0, complete: true });
 });
 
 test('does not treat the ad trigger DATERANGE on normal live playlists as an ad', () => {
@@ -42,7 +43,8 @@ test('does not treat the ad trigger DATERANGE on normal live playlists as an ad'
             { n: 2 },
         ],
     });
-    assert.deepEqual(stripAds(input), { playlist: input, removed: 0, complete: true });
+    const { playlist: out, removed, complete } = stripAds(input);
+    assert.deepEqual({ out, removed, complete }, { out: input, removed: 0, complete: true });
 });
 
 test('drops trailing ad segments and their prefetch hints', () => {
@@ -156,12 +158,10 @@ test('lets a preroll play when joining before any live segment exists', () => {
         sequence: 1,
         segments: [{ n: 1, ad: true, daterange: AD_DATERANGE }, { n: 2, ad: true }, { n: 3, discontinuity: true }, { n: 4 }],
     });
-    const resumed = filterPlaylist(url, prerollEnding);
-    assert.deepEqual(segmentUris(resumed), ['live-3.ts', 'live-4.ts'], 'live segments take over as soon as they exist');
-    assert.equal(header(resumed, 'EXT-X-MEDIA-SEQUENCE'), 3);
+    assert.equal(filterPlaylist(url, prerollEnding), prerollEnding, 'the player plays on from the preroll into live');
 
     const midroll = playlist({ sequence: 5, segments: [{ n: 5, ad: true, daterange: AD_DATERANGE }, { n: 6, ad: true }] });
-    assert.equal(filterPlaylist(url, midroll), resumed, 'later breaks still hold the last live playlist');
+    assert.equal(filterPlaylist(url, midroll), prerollEnding, 'later breaks still hold the last live playlist');
 });
 
 test('never hands the player a media playlist without segments', () => {
@@ -207,4 +207,32 @@ test('moves on to live after a mid-roll in a session playlist', () => {
     assert.equal(stuck, 0);
     const after = filterPlaylist(url, sessionPlaylist(40, [[15, 25]], 'midroll'));
     assert.equal(header(after, 'EXT-X-MEDIA-SEQUENCE'), 25);
+});
+
+test('plays on from a started preroll into live, on every quality level of the session', () => {
+    const level1 = 'https://use12.playlist.ttvnw.net/v1/playlist/level-1.m3u8';
+    const level2 = 'https://use12.playlist.ttvnw.net/v1/playlist/level-2.m3u8';
+    const joining = sessionPlaylist(2, [[0, 8]], 'preroll');
+    assert.equal(filterPlaylist(level1, joining), joining, 'nothing live yet, so the preroll plays');
+
+    // The rest of the preroll and the switch to live, after the player changed quality level.
+    const ending = sessionPlaylist(11, [[0, 8]], 'preroll');
+    assert.equal(filterPlaylist(level2, ending), ending, 'ads the player has started stay in place');
+
+    // A mid-roll later in the same session is still skipped.
+    const midroll = sessionPlaylist(30, [[0, 8], [20, 26]], 'preroll');
+    const out = filterPlaylist(level2, midroll);
+    assert.deepEqual(segmentUris(out), ['live-26.ts', 'live-27.ts', 'live-28.ts', 'live-29.ts', 'live-30.ts']);
+});
+
+test('never hands the player a media playlist without segments', () => {
+    let n = 0;
+    for (let length = 1; length <= 6; length++) {
+        for (let mask = 0; mask < 1 << length; mask++) {
+            const segments = Array.from({ length }, (_, i) => ({ n: i, ad: Boolean(mask & (1 << i)), daterange: i === 0 && mask & 1 ? AD_DATERANGE : undefined }));
+            const input = playlist({ sequence: 10, segments });
+            const out = filterPlaylist(`https://use16.playlist.ttvnw.net/v1/playlist/fresh-${n++}.m3u8`, input);
+            assert.ok(segmentUris(out).length > 0, `empty playlist for pattern ${mask.toString(2).padStart(length, '0')}`);
+        }
+    }
 });
