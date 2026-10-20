@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased (0.2.2)
+## Unreleased (0.2.3)
+
+#### **✨ Features**
+- Keeps the stream playing through ad breaks. When Twitch starts an ad break, CeladonTV switches to the same broadcast from another of Twitch's players that isn't showing ads, picking the same quality where it can (sometimes a lower one), and switches back when the break ends. A small "Blocking ads" notice shows in the top-left corner while it does.
+- Adds "Record playback diagnostics" under Troubleshooting in CeladonTV settings. While on, CeladonTV keeps a small log on the TV of how it handled each ad break, and "Save diagnostics to Downloads" saves it as a text file to share. Off by default; nothing is sent anywhere.
+
+#### **🐞 Bug Fixes**
+- If the player stops for 20 seconds outside an ad break, CeladonTV reopens the channel instead of leaving the loading spinner up. It does this at most once every 3 minutes.
+
+#### **⚠️ Known Limitations**
+- During some ad breaks Twitch shows ads on all of its players, so there's no ad-free stream to switch to. CeladonTV then holds the last frame of the stream, with a "Blocking ads · back after the break" notice, until the break ends.
+
+## v0.2.2 (10/20/2026)
 
 #### **🐞 Bug Fixes**
 - Streams no longer freeze on the loading spinner after a mid-roll ad. Twitch only tags an ad on its first segment, so once that segment left the playlist the rest of a long ad (30 seconds or more) slipped past CeladonTV's ad filter, and Twitch's player lost its place in the stream. This happened with either script variant.
