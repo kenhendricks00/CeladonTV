@@ -21,7 +21,9 @@ object AdBlock {
 
     fun scripts(context: Context, settings: AppSettings): List<String> {
         if (!settings.adBlockEnabled) return emptyList()
-        return listOf(store(context).load(settings.variant).source, context.readScriptAsset(ADAPTER))
+        // The adapter goes first so its backup-stream requests use the browser's own fetch:
+        // the TwitchAdSolutions scripts rewrite access-token requests made through theirs.
+        return listOf(context.readScriptAsset(ADAPTER), store(context).load(settings.variant).source)
     }
 
     fun update(context: Context, onDone: (Map<ScriptVariant, ScriptUpdater.Outcome>) -> Unit) {

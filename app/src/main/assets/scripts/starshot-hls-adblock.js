@@ -1,10 +1,10 @@
 // CeladonTV hls.js adapter.
 //
-// Twitch's TV web app ("Starshot") plays streams with hls.js
-// on the main thread instead of the Amazon IVS worker that the TwitchAdSolutions
-// scripts hook. This filters stitched ad segments out of media playlists as hls.js
-// loads them, keeping media/discontinuity sequence numbers consistent so the player
-// simply waits out the ad break instead of showing it.
+// Twitch's TV web app ("Starshot") plays streams with hls.js on the main thread
+// instead of the Amazon IVS worker that the TwitchAdSolutions scripts hook. This
+// filters stitched ad segments out of media playlists as hls.js loads them. During an
+// ad break it splices in the same broadcast from an ad-free backup stream, so playback
+// carries on; without a backup the player waits out the break on the last live frame.
 (function () {
     'use strict';
 
@@ -133,6 +133,140 @@
         return typeof url === 'string' && /\.m3u8(\?|$)/.test(url) && /^https:\/\/[^/]*\.(ttvnw\.net|twitch\.tv)\//.test(url);
     }
 
+    // ---- Backup stream ----------------------------------------------------------------
+    //
+    // The same broadcast requested with another player type usually comes without ads.
+    // Every player type is cut from the same transcode: at a given PROGRAM-DATE-TIME the
+    // segments are byte-identical, so during a break the backup's segments can stand in
+    // for the ads without hls.js leaving its timeline.
+
+    const BACKUP_PLAYER_TYPES = ['embed', 'popout', 'site', 'mobile_web', 'autoplay', 'picture-by-picture'];
+    const BACKUP_FRESH_MS = 6000;
+    const MAX_SPLICED_SEGMENTS = 40;
+    const PDT = '#EXT-X-PROGRAM-DATE-TIME:';
+
+    function parseAttributes(line) {
+        const attrs = {};
+        const re = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/g;
+        const body = line.slice(line.indexOf(':') + 1);
+        let m;
+        while ((m = re.exec(body))) attrs[m[1]] = m[2].startsWith('"') ? m[2].slice(1, -1) : m[2];
+        return attrs;
+    }
+
+    function isMasterPlaylist(text) {
+        return typeof text === 'string' && text.includes('#EXT-X-STREAM-INF');
+    }
+
+    // Renditions of a master playlist.
+    function parseMaster(text, baseUrl) {
+        const lines = text.split(/\r?\n/);
+        const renditions = [];
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].startsWith('#EXT-X-STREAM-INF:')) continue;
+            const uri = lines.slice(i + 1).find((l) => l && !l.startsWith('#'));
+            if (!uri) continue;
+            const a = parseAttributes(lines[i]);
+            const resolution = a.RESOLUTION || '';
+            renditions.push({
+                url: baseUrl ? new URL(uri, baseUrl).href : uri,
+                resolution,
+                height: parseInt(resolution.split('x')[1], 10) || 0,
+                frameRate: parseFloat(a['FRAME-RATE']) || 0,
+                codecs: a.CODECS || '',
+            });
+        }
+        return renditions;
+    }
+
+    function videoCodec(codecs) {
+        const codec = codecs.split(',').map((c) => c.trim()).find((c) => !/^(mp4a|ac-3|ec-3|opus)/.test(c)) || '';
+        return codec.slice(0, 4).replace('hvc1', 'hev1');
+    }
+
+    // The backup rendition closest to the one playing: the same resolution (and codec and
+    // frame rate) if it is offered, otherwise the tallest one below it, otherwise the smallest.
+    function pickRendition(renditions, wanted) {
+        const sameCodec = renditions.filter((r) => !wanted || !wanted.codecs || videoCodec(r.codecs) === videoCodec(wanted.codecs));
+        const pool = sameCodec.length ? sameCodec : renditions;
+        if (!pool.length) return null;
+        if (!wanted) return pool.reduce((a, b) => (b.height > a.height ? b : a));
+        const rate = (r) => Math.abs(r.frameRate - wanted.frameRate);
+        const exact = pool.filter((r) => r.resolution === wanted.resolution).sort((a, b) => rate(a) - rate(b));
+        if (exact.length) return exact[0];
+        const below = pool.filter((r) => r.height < wanted.height).sort((a, b) => b.height - a.height || rate(a) - rate(b));
+        return below.length ? below[0] : pool.reduce((a, b) => (b.height < a.height ? b : a));
+    }
+
+    // Segments of a media playlist with their media sequence number, broadcast time and
+    // duration (ms), and the init segment (EXT-X-MAP) they use.
+    function timeline(text) {
+        const { header, segments } = parse(text);
+        let sn = mediaSequence(header);
+        let pdt = NaN;
+        let map = null;
+        return {
+            header,
+            segments: segments.map((s) => {
+                for (const t of s.tags) {
+                    if (t.startsWith(PDT)) pdt = Date.parse(t.slice(PDT.length));
+                    else if (t.startsWith('#EXT-X-MAP')) map = t;
+                }
+                const dur = parseFloat((s.tags.find((t) => t.startsWith('#EXTINF:')) || '#EXTINF:0').slice(8)) * 1000;
+                const seg = { ...s, sn: sn++, pdt, dur, map };
+                pdt += dur;
+                return seg;
+            }),
+        };
+    }
+
+    // Once a session has used a backup, its playlists are numbered on one grid: a live
+    // segment's media sequence number follows from its broadcast time, whichever stream
+    // it came from. Main and backup playlists are numbered differently, and ad segments
+    // (which never reach the player on this path) take up numbers in the main one.
+    function makeGrid(anchor) {
+        return { sn: anchor.sn, pdt: anchor.pdt, step: anchor.dur >= 500 ? anchor.dur : 2000 };
+    }
+
+    function gridSn(grid, pdt) {
+        return grid.sn + Math.round((pdt - grid.pdt) / grid.step);
+    }
+
+    function keepSplicedTag(tag, fromMain) {
+        if (tag.startsWith('#EXT-X-MAP') || tag === '#EXT-X-DISCONTINUITY') return false;
+        if (tag.startsWith('#EXT-X-DATERANGE')) return fromMain && !hasAdTags(tag);
+        return true;
+    }
+
+    // Joins the live segments of the main and backup playlists on the grid (main wins where
+    // both have one) and returns the contiguous run that reaches the newest segment.
+    function splice(main, backup, grid) {
+        const bySn = new Map();
+        const add = (seg, fromMain) => {
+            if (!seg.isAd && Number.isFinite(seg.pdt)) bySn.set(gridSn(grid, seg.pdt), { seg, fromMain });
+        };
+        if (backup) backup.segments.forEach((s) => add(s, false));
+        main.segments.forEach((s) => add(s, true));
+        if (!bySn.size) return null;
+        const end = Math.max(...bySn.keys());
+        let start = end;
+        while (bySn.has(start - 1) && end - start < MAX_SPLICED_SEGMENTS - 1) start--;
+        const header = (main.segments.length || !backup ? main.header : backup.header)
+            .filter((l) => !l.startsWith('#EXT-X-MEDIA-SEQUENCE:') && !l.startsWith('#EXT-X-DISCONTINUITY-SEQUENCE:'));
+        const lines = [...header, '#EXT-X-MEDIA-SEQUENCE:' + start];
+        let map = null;
+        let fromBackup = 0;
+        for (let sn = start; sn <= end; sn++) {
+            const { seg, fromMain } = bySn.get(sn);
+            if (seg.map && seg.map !== map) lines.push((map = seg.map));
+            if (!fromMain) fromBackup++;
+            lines.push(...seg.tags.filter((t) => keepSplicedTag(t, fromMain)), seg.uri);
+        }
+        return { playlist: lines.join('\n') + '\n', start, end, fromBackup };
+    }
+
+    // ---- Filter state -------------------------------------------------------------------
+
     // Playlist URL -> last playlist that reached the live edge. While ads occupy the
     // edge it is returned unchanged, so hls.js waits for new segments; a shrinking
     // trimmed window instead makes the player seek back and replay the last seconds.
@@ -142,36 +276,307 @@
     // quality level of a session shares its numbering, so this is kept per session.
     const playedAds = new Map();
 
+    // Playback session -> { grid, backup, backupAt, backupType, liveAfterAds }.
+    const sessions = new Map();
+
+    let now = () => Date.now();
+
     function sessionKey(url, text) {
         const match = /X-TV-TWITCH-SESSIONID="([^"]+)"/.exec(text);
         return match ? match[1] : url;
     }
 
+    function sessionState(session) {
+        if (!sessions.has(session)) sessions.set(session, { grid: null, backup: null, backupAt: 0, backupType: null, liveAfterAds: false });
+        return sessions.get(session);
+    }
+
+    // What the player is being given during an ad break, for the on-screen notice and the
+    // stall backstop: 'backup' (the backup stream), 'held' (the last live frame), 'ads'
+    // (the ads themselves) or 'none'.
+    function report(state, details) {
+        if (typeof window === 'undefined' || !window.dispatchEvent) return;
+        window.__ctvAdBreak = { state, at: now() };
+        try {
+            window.dispatchEvent(new CustomEvent('celadontv:adbreak', { detail: { state } }));
+        } catch (e) { /* CustomEvent unavailable */ }
+        diagnose(details);
+    }
+
+    function shape(text) {
+        if (typeof text !== 'string') return '-';
+        const runs = [];
+        for (const s of timeline(text).segments) {
+            const kind = s.isAd ? 'ad' : 'live';
+            const last = runs[runs.length - 1];
+            if (last && last.kind === kind && last.to === s.sn - 1) last.to = s.sn;
+            else runs.push({ kind, from: s.sn, to: s.sn });
+        }
+        return runs.map((r) => `${r.kind}[${r.from}-${r.to}]`).join(' ') || 'empty';
+    }
+
+    function diagnose(details) {
+        if (typeof window === 'undefined' || !window.CeladonTVDiagnostics || !details) return;
+        try {
+            window.CeladonTVDiagnostics.record(details());
+        } catch (e) { /* diagnostics are best effort */ }
+    }
+
+    function shortId(value) {
+        let h = 0;
+        for (let i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) | 0;
+        return (h >>> 0).toString(36).slice(0, 5);
+    }
+
     // hls.js is never handed a media playlist without segments: Twitch's player gives up
     // (about 20s) if playback can't start, which is shorter than a preroll. With no live
     // playlist to hold yet (joining during a preroll), the ads are passed through.
-
-    function filterPlaylist(url, text) {
-        if (typeof text !== 'string' || !text.includes('#EXTINF')) return text;
+    //
+    // `backupText` is the freshest backup playlist for this one (undefined: no news, null:
+    // no backup without ads could be found).
+    function filterPlaylist(url, text, backupText, backupType) {
+        if (typeof text !== 'string') return text;
+        if (isMasterPlaylist(text)) {
+            rememberMaster(url, text);
+            return text;
+        }
+        if (!text.includes('#EXTINF')) return text;
         const session = sessionKey(url, text);
+        const state = sessionState(session);
+        if (backupText !== undefined) {
+            state.backup = backupText ? timeline(backupText) : null;
+            state.backupAt = now();
+            state.backupType = backupText ? backupType || null : null;
+        }
+        lastPlaylistAt = now();
+        const backup = state.backup && now() - state.backupAt < BACKUP_FRESH_MS ? state.backup : null;
         const result = stripAds(text, playedAds.has(session) ? playedAds.get(session) : -1);
         if (playedAds.has(session)) playedAds.set(session, result.playedThrough);
+        const adsAtEdge = !result.complete;
+        if (playedAds.has(session) && result.complete && result.kept !== 0) state.liveAfterAds = true;
+        const log = (decision, out) => () =>
+            `playlist ${shortId(session)}/${shortId(url.split('?')[0])} ${decision} in=${shape(text)} out=${shape(out)}` +
+            (state.backupType ? ` backup=${state.backupType}` : '');
+
+        if (state.grid || (adsAtEdge && backup && backupAllowed(session))) {
+            const main = timeline(text);
+            if (!state.grid) state.grid = makeGrid(gridAnchor(url, main, backup));
+            const spliced = splice(main, backup, state.grid);
+            if (spliced && (!adsAtEdge || spliced.fromBackup > 0)) {
+                lastLive.set(url, spliced.playlist);
+                if (adsAtEdge && !state.announced) console.log(LOG_PREFIX + ' ad break: playing the ' + state.backupType + ' stream');
+                state.announced = adsAtEdge;
+                report(adsAtEdge ? 'backup' : 'none', log(adsAtEdge ? 'spliced' : 'live', spliced.playlist));
+                return spliced.playlist;
+            }
+        }
         if (result.complete) {
             lastLive.set(url, result.playlist);
             if (result.removed > 0) console.log(LOG_PREFIX + ' removed ' + result.removed + ' ad segment(s)');
+            report('none', log(result.removed > 0 ? 'stripped' : 'live', result.playlist));
             return result.playlist;
         }
         const held = lastLive.get(url);
         if (held) {
             console.log(LOG_PREFIX + ' ad break: holding last live playlist');
+            report('held', log('held', held));
             return held;
         }
-        if (result.live > 0) return result.playlist;
+        if (result.live > 0) {
+            report('held', log('truncated', result.playlist));
+            return result.playlist;
+        }
         console.log(LOG_PREFIX + ' ad break before any live segments: letting it play');
         const { header, segments } = parse(text);
         playedAds.set(session, mediaSequence(header) + segments.length - 1);
+        report('ads', log('ads-through', text));
         return text;
     }
+
+    // Where the grid starts: the newest live segment the player already has, so its
+    // numbering carries on; with nothing yet (joining during a break), the backup's own.
+    function gridAnchor(url, main, backup) {
+        const previous = lastLive.has(url) ? timeline(lastLive.get(url)).segments.filter((s) => !s.isAd) : [];
+        if (previous.length) return previous[previous.length - 1];
+        const live = main.segments.filter((s) => !s.isAd);
+        if (live.length) return live[live.length - 1];
+        return backup.segments[0];
+    }
+
+    // ---- Fetching the backup ----------------------------------------------------------
+
+    const backupConfig = { login: null, usher: null, renditions: [], clientId: null, deviceId: null, authorization: null };
+    const backupTypes = new Map();
+    let backupFailedUntil = 0;
+    let realFetch = null;
+    let lastPlaylistAt = 0;
+    let warmTimer = null;
+
+    // A new backup session starts with a preroll of its own, which would leave it useless for
+    // a break that is already running. So the first backup types' sessions are opened when the
+    // stream starts and their playlists checked once a minute, so they are past their prerolls
+    // (and known to be up) by the time a mid-roll comes. Stops when playback does.
+    const WARM_PLAYER_TYPES = BACKUP_PLAYER_TYPES.slice(0, 2);
+    const WARM_INTERVAL_MS = 60000;
+
+    function warmBackups() {
+        if (!realFetch || !backupConfig.clientId || !backupConfig.login) return;
+        for (const type of WARM_PLAYER_TYPES) {
+            const entry = backupEntry(type);
+            (async () => {
+                if (!entry.renditions) {
+                    entry.renditions = await fetchBackupRenditions(type);
+                    entry.at = now();
+                }
+                const rendition = pickRendition(entry.renditions, null);
+                const response = await realFetch(rendition.url);
+                if (!response.ok) throw new Error('playlist ' + response.status);
+                const live = stripAds(await response.text()).complete;
+                diagnose(() => `backup ${type}: warm, ${live ? 'live' : 'in an ad break'}`);
+            })().catch((e) => {
+                entry.renditions = null;
+                diagnose(() => `backup ${type}: warm-up failed: ${e && e.message}`);
+            });
+        }
+    }
+
+    function scheduleWarmUp() {
+        setTimeout(warmBackups, 0);
+        if (warmTimer) return;
+        warmTimer = setInterval(() => {
+            if (now() - lastPlaylistAt > 2 * WARM_INTERVAL_MS) {
+                clearInterval(warmTimer);
+                warmTimer = null;
+                return;
+            }
+            warmBackups();
+        }, WARM_INTERVAL_MS);
+        if (warmTimer.unref) warmTimer.unref();
+    }
+
+    function backupEntry(type) {
+        if (!backupTypes.has(type)) backupTypes.set(type, { renditions: null, at: 0, adsUntil: 0 });
+        return backupTypes.get(type);
+    }
+
+    function rememberMaster(url, text) {
+        const channel = /\/channel\/hls\/([^/?]+)\.m3u8/.exec(url);
+        if (!channel) return;
+        backupConfig.login = decodeURIComponent(channel[1]).toLowerCase();
+        backupConfig.usher = url;
+        backupConfig.renditions = parseMaster(text, url);
+        backupTypes.clear();
+        backupFailedUntil = 0;
+        lastPlaylistAt = now();
+        scheduleWarmUp();
+    }
+
+    function rememberGqlHeaders(headers) {
+        const get = (name) => {
+            if (!headers) return null;
+            if (typeof headers.get === 'function') return headers.get(name);
+            const key = Object.keys(headers).find((k) => k.toLowerCase() === name.toLowerCase());
+            return key ? headers[key] : null;
+        };
+        const clientId = get('Client-Id');
+        if (!clientId) return;
+        backupConfig.clientId = clientId;
+        backupConfig.deviceId = get('Device-Id') || backupConfig.deviceId;
+        backupConfig.authorization = get('Authorization');
+    }
+
+    // Ads that were handed to the player (joining during a break with no backup) must play
+    // on into live: hls.js can only leave them in sequence. Once it is playing live again,
+    // backup segments, numbered on from its live segments, are safe.
+    function backupAllowed(session) {
+        return !playedAds.has(session) || sessionState(session).liveAfterAds;
+    }
+
+    // Whether this response should wait for a backup playlist: ads at the live edge, and no
+    // ads still playing in the player.
+    function wantsBackup(url, text) {
+        if (isMasterPlaylist(text) || !hasAds(text) || stripAds(text).complete) return false;
+        if (!realFetch || !backupConfig.login || !backupConfig.clientId) {
+            diagnose(() => `backup: not set up (channel ${!!backupConfig.login}, client ${!!backupConfig.clientId})`);
+            return false;
+        }
+        return now() >= backupFailedUntil && backupAllowed(sessionKey(url, text));
+    }
+
+    async function fetchBackupRenditions(type) {
+        const headers = { 'Content-Type': 'application/json', 'Client-Id': backupConfig.clientId };
+        if (backupConfig.deviceId) headers['Device-Id'] = backupConfig.deviceId;
+        if (backupConfig.authorization) headers.Authorization = backupConfig.authorization;
+        const response = await realFetch('https://gql.twitch.tv/gql', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: 'query CeladonTVBackupToken($login: String!, $playerType: String!) { streamPlaybackAccessToken(channelName: $login, params: {platform: "android_tv", playerBackend: "hlsjs", playerType: $playerType}) { value signature } }',
+                variables: { login: backupConfig.login, playerType: type },
+            }),
+        });
+        const body = await response.json();
+        const token = body && body.data && body.data.streamPlaybackAccessToken;
+        if (!token) throw new Error('no token: ' + JSON.stringify(body && body.errors).slice(0, 200));
+        const usher = new URL(backupConfig.usher);
+        usher.searchParams.set('player_type', type);
+        usher.searchParams.set('sig', token.signature);
+        usher.searchParams.set('token', token.value);
+        const master = await realFetch(usher.href);
+        if (!master.ok) throw new Error('usher ' + master.status);
+        return parseMaster(await master.text(), usher.href);
+    }
+
+    // The first backup player type whose stream has no ads at its live edge right now, at
+    // the rendition closest to the one playing.
+    async function fetchBackup(mainUrl) {
+        const wanted = backupConfig.renditions.find((r) => r.url.split('?')[0] === mainUrl.split('?')[0]) || null;
+        for (const type of BACKUP_PLAYER_TYPES) {
+            const entry = backupEntry(type);
+            if (entry.adsUntil > now()) continue;
+            try {
+                // A session is kept as long as it works: a new one would start with a preroll.
+                if (!entry.renditions) {
+                    entry.renditions = await fetchBackupRenditions(type);
+                    entry.at = now();
+                }
+                const rendition = pickRendition(entry.renditions, wanted);
+                if (!rendition) throw new Error('no renditions');
+                const response = await realFetch(rendition.url);
+                if (!response.ok) throw new Error('playlist ' + response.status);
+                const text = await response.text();
+                // A new backup session may start with a preroll; only its live edge matters.
+                if (!stripAds(text).complete) {
+                    entry.adsUntil = now() + 30000;
+                    diagnose(() => `backup ${type}: has ads too`);
+                    continue;
+                }
+                diagnose(() => `backup ${type}: ${rendition.resolution} ok`);
+                return { type, text };
+            } catch (e) {
+                entry.renditions = null;
+                diagnose(() => `backup ${type} failed: ${e && e.message}`);
+            }
+        }
+        backupFailedUntil = now() + 10000;
+        diagnose(() => 'backup: none without ads');
+        return null;
+    }
+
+    function withTimeout(promise, ms) {
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('timeout')), ms);
+            promise.then(
+                (v) => { clearTimeout(timer); resolve(v); },
+                (e) => { clearTimeout(timer); reject(e); },
+            );
+        });
+    }
+
+    // hls.js loads playlists with XHR. A media playlist with ads at the live edge completes
+    // only once a backup playlist has been fetched (or given up on), so the first playlist
+    // of a break already carries the backup's segments.
+    const BACKUP_WAIT_MS = 4000;
 
     function hookXhr(XHR) {
         const proto = XHR.prototype;
@@ -181,6 +586,7 @@
             this.__ctvFiltered = undefined;
             return realOpen.apply(this, arguments);
         };
+        const textDesc = Object.getOwnPropertyDescriptor(proto, 'responseText');
         for (const prop of ['responseText', 'response']) {
             const desc = Object.getOwnPropertyDescriptor(proto, prop);
             Object.defineProperty(proto, prop, {
@@ -194,13 +600,53 @@
                 },
             });
         }
+        const handlerDesc = Object.getOwnPropertyDescriptor(proto, 'onreadystatechange');
+        if (!handlerDesc || !handlerDesc.set) return;
+        Object.defineProperty(proto, 'onreadystatechange', {
+            configurable: true,
+            enumerable: handlerDesc.enumerable,
+            get: function () {
+                return this.__ctvHandler !== undefined ? this.__ctvHandler : handlerDesc.get.call(this);
+            },
+            set: function (handler) {
+                this.__ctvHandler = handler;
+                if (typeof handler !== 'function') {
+                    handlerDesc.set.call(this, handler);
+                    return;
+                }
+                const xhr = this;
+                handlerDesc.set.call(this, function (event) {
+                    const url = xhr.__ctvPlaylistUrl;
+                    if (xhr.readyState === 4 && url && xhr.__ctvFiltered === undefined && xhr.status === 200) {
+                        const raw = textDesc.get.call(xhr);
+                        if (typeof raw === 'string' && wantsBackup(url, raw)) {
+                            withTimeout(fetchBackup(url), BACKUP_WAIT_MS)
+                                .then(
+                                    (backup) => filterPlaylist(url, raw, backup ? backup.text : null, backup && backup.type),
+                                    () => filterPlaylist(url, raw),
+                                )
+                                .then((filtered) => {
+                                    xhr.__ctvFiltered = filtered;
+                                    if (xhr.__ctvHandler === handler) handler.call(xhr, event);
+                                });
+                            return undefined;
+                        }
+                    }
+                    return handler.call(this, event);
+                });
+            },
+        });
     }
 
     function hookFetch(win) {
-        const realFetch = win.fetch;
+        const original = win.fetch;
+        realFetch = original.bind(win);
         win.fetch = function (input, init) {
             const url = typeof input === 'string' ? input : input && input.url;
-            const pending = realFetch.apply(this, arguments);
+            if (typeof url === 'string' && url.startsWith('https://gql.twitch.tv/')) {
+                rememberGqlHeaders((init && init.headers) || (input && input.headers));
+            }
+            const pending = original.apply(this, arguments);
             if (!isPlaylistUrl(url)) return pending;
             return pending.then(async (response) => {
                 if (!response.ok) return response;
@@ -222,6 +668,31 @@
     }
 
     if (typeof module !== 'undefined') {
-        module.exports = { stripAds, hasAdTags, isPlaylistUrl, filterPlaylist };
+        module.exports = {
+            stripAds,
+            hasAdTags,
+            isPlaylistUrl,
+            filterPlaylist,
+            parseMaster,
+            pickRendition,
+            timeline,
+            splice,
+            makeGrid,
+            hookXhr,
+            hookFetch,
+            setClock: (clock) => {
+                now = clock;
+            },
+            reset: () => {
+                lastLive.clear();
+                playedAds.clear();
+                sessions.clear();
+                backupTypes.clear();
+                Object.assign(backupConfig, { login: null, usher: null, renditions: [], clientId: null, deviceId: null, authorization: null });
+                backupFailedUntil = 0;
+                clearInterval(warmTimer);
+                warmTimer = null;
+            },
+        };
     }
 })();
