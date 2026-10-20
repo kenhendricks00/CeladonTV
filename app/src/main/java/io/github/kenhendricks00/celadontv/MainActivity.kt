@@ -40,10 +40,11 @@ class MainActivity : Activity() {
                 NativeHooks(onCloseRequested = { runOnUiThread(::finish) }),
                 NativeHooks.JS_NAME,
             )
+            addJavascriptInterface(SettingsBridge(::openSettingsFromPage), SettingsBridge.JS_NAME)
         }
         setContentView(webView)
         injector = ScriptInjector(webView)
-        injector.apply(AdBlock.scripts(this, settings))
+        injector.apply(pageScripts())
         webView.loadUrl(TwitchTv.HOME_URL)
         webView.requestFocus()
         AdBlock.updateIfDue(this, settings)
@@ -52,7 +53,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         webView.onResume()
-        if (injector.apply(AdBlock.scripts(this, settings))) webView.reload()
+        if (injector.apply(pageScripts())) webView.reload()
     }
 
     override fun onPause() {
@@ -98,7 +99,14 @@ class MainActivity : Activity() {
         return true
     }
 
+    private fun pageScripts() = listOf(readScriptAsset(SETTINGS_ROW_SCRIPT)) + AdBlock.scripts(this, settings)
+
     private fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
+
+    /** The bridge can't be limited to an origin, so only act while Twitch's TV app is the loaded page. */
+    private fun openSettingsFromPage() = runOnUiThread {
+        if (webView.url?.startsWith(TwitchTv.ORIGIN) == true) openSettings()
+    }
 
     private inner class Client : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) = injector.onPageStarted(url)
@@ -122,5 +130,6 @@ class MainActivity : Activity() {
 
     private companion object {
         const val TAG = "CeladonTV"
+        const val SETTINGS_ROW_SCRIPT = "celadontv-settings-row.js"
     }
 }

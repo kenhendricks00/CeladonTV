@@ -40,5 +40,5 @@ object AdBlock {
     }
 }
 
-private fun Context.readScriptAsset(name: String): String =
+internal fun Context.readScriptAsset(name: String): String =
     assets.open("scripts/$name").bufferedReader().use { it.readText() }
