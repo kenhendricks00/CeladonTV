@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Twitch's focused row: light fill with a 2.25dp purple ring drawn just outside it. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/tw_focus_ring" />
+            <corners android:radius="7.65dp" />
+        </shape>
+    </item>
+    <item android:bottom="2.25dp" android:left="2.25dp" android:right="2.25dp" android:top="2.25dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/tw_focus_fill" />
+            <corners android:radius="5.4dp" />
+        </shape>
+    </item>
+</layer-list>

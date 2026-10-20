@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Twitch's TV web app (celadon.tv.twitch.tv) as rendered on its settings page. -->
+    <color name="tw_background">#0E0E10</color>
+    <color name="tw_surface">#26262C</color>
+    <color name="tw_text">#EFEFF1</color>
+    <color name="tw_text_muted">#ADADB8</color>
+    <color name="tw_focus_fill">#E6E6EA</color>
+    <color name="tw_focus_text">#0E0E10</color>
+    <color name="tw_focus_ring">#772CE8</color>
+    <color name="tw_purple">#9147FF</color>
+    <color name="tw_purple_light">#A970FF</color>
+</resources>

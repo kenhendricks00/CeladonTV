@@ -1,17 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="twitch_background">#0E0E10</color>
-    <color name="accent">#C026D3</color>
-
     <style name="Theme.CeladonTV" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">@color/twitch_background</item>
+        <item name="android:windowBackground">@color/tw_background</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="colorAccent">@color/accent</item>
+        <item name="colorAccent">@color/tw_purple</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.CeladonTV.Dialog</item>
     </style>
 
+    <!-- Looks like the settings page of Twitch's TV app, which links here through the CeladonTV row. -->
     <style name="Theme.CeladonTV.Settings" parent="Theme.AppCompat">
-        <item name="android:windowBackground">@color/twitch_background</item>
-        <item name="colorPrimary">@color/twitch_background</item>
-        <item name="colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@color/tw_background</item>
+        <item name="colorPrimary">@color/tw_background</item>
+        <item name="colorPrimaryDark">@color/tw_background</item>
+        <item name="colorAccent">@color/tw_purple</item>
+        <item name="colorControlActivated">@color/tw_purple</item>
+        <item name="colorSwitchThumbNormal">@color/tw_text_muted</item>
+        <item name="android:textColorPrimary">@color/tw_text</item>
+        <item name="android:textColorSecondary">@color/tw_text</item>
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay.CeladonTV</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.CeladonTV.Dialog</item>
+    </style>
+
+    <style name="PreferenceThemeOverlay.CeladonTV" parent="PreferenceThemeOverlay">
+        <item name="preferenceStyle">@style/Preference.CeladonTV</item>
+        <item name="dialogPreferenceStyle">@style/Preference.CeladonTV.Dialog</item>
+        <item name="switchPreferenceCompatStyle">@style/Preference.CeladonTV.Switch</item>
+        <item name="preferenceCategoryStyle">@style/Preference.CeladonTV.Category</item>
+        <item name="preferenceFragmentCompatStyle">@style/PreferenceFragment.CeladonTV</item>
+    </style>
+
+    <style name="Preference.CeladonTV" parent="Preference.Material">
+        <item name="android:layout">@layout/tw_preference</item>
+    </style>
+
+    <style name="Preference.CeladonTV.Dialog" parent="Preference.DialogPreference.Material">
+        <item name="android:layout">@layout/tw_preference</item>
+    </style>
+
+    <style name="Preference.CeladonTV.Switch" parent="Preference.SwitchPreferenceCompat.Material">
+        <item name="android:layout">@layout/tw_preference</item>
+    </style>
+
+    <style name="Preference.CeladonTV.Category" parent="Preference.Category.Material">
+        <item name="android:layout">@layout/tw_preference_category</item>
+    </style>
+
+    <style name="PreferenceFragment.CeladonTV" parent="PreferenceFragment.Material">
+        <item name="android:divider">@null</item>
+    </style>
+
+    <!-- Dialogs (Script variant list, licenses, app updates) in the same palette and focus style. -->
+    <style name="ThemeOverlay.CeladonTV.Dialog" parent="ThemeOverlay.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/tw_dialog_background</item>
+        <item name="colorAccent">@color/tw_purple</item>
+        <item name="colorControlActivated">@color/tw_purple</item>
+        <item name="colorControlNormal">@color/tw_text_muted</item>
+        <item name="android:textColorPrimary">@color/tw_text</item>
+        <item name="android:textColorSecondary">@color/tw_text</item>
+        <item name="listChoiceBackgroundIndicator">@android:color/transparent</item>
+        <item name="alertDialogStyle">@style/AlertDialog.CeladonTV</item>
+        <item name="buttonBarButtonStyle">@style/Widget.CeladonTV.DialogButton</item>
+    </style>
+
+    <style name="AlertDialog.CeladonTV" parent="AlertDialog.AppCompat">
+        <item name="singleChoiceItemLayout">@layout/tw_dialog_singlechoice</item>
+    </style>
+
+    <style name="Widget.CeladonTV.DialogButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:background">@drawable/tw_button_background</item>
+        <item name="android:textColor">@color/tw_button_text</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:minHeight">48dp</item>
     </style>
 </resources>

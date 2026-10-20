@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- androidx.preference's list, padded below the action bar: with edge-to-edge enforced (API 35+),
+     AppCompat lays the settings content out underneath its action bar. -->
+<androidx.recyclerview.widget.RecyclerView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/recycler_view"
+    style="?attr/preferenceFragmentListStyle"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:paddingTop="?attr/actionBarSize"
+    android:paddingBottom="16dp"
+    tools:ignore="UnusedResources" />

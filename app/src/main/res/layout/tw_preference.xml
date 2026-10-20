@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A preference row drawn like a row of Twitch's TV settings page. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="35.75dp"
+    android:layout_marginEnd="35.75dp"
+    android:background="@drawable/tw_row_background"
+    android:baselineAligned="false"
+    android:gravity="center_vertical"
+    android:minHeight="76dp"
+    android:orientation="horizontal"
+    android:paddingStart="20.25dp"
+    android:paddingTop="11.25dp"
+    android:paddingEnd="20.25dp"
+    android:paddingBottom="11.25dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:duplicateParentState="true"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@android:id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:duplicateParentState="true"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="2"
+            android:textColor="@color/tw_row_text"
+            android:textSize="16.2sp" />
+
+        <TextView
+            android:id="@android:id/summary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:duplicateParentState="true"
+            android:fontFamily="sans-serif"
+            android:lineSpacingMultiplier="1.2"
+            android:maxLines="4"
+            android:textColor="@color/tw_row_text"
+            android:textSize="12.6sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@android:id/widget_frame"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:duplicateParentState="true"
+        android:gravity="center_vertical|end"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="0dp" />
+</LinearLayout>
