@@ -9,6 +9,7 @@ import androidx.preference.PreferenceFragmentCompat
 import io.github.kenhendricks00.celadontv.AdBlock
 import io.github.kenhendricks00.celadontv.BuildConfig
 import io.github.kenhendricks00.celadontv.R
+import io.github.kenhendricks00.celadontv.diagnostics.Diagnostics
 import io.github.kenhendricks00.celadontv.scripts.ScriptUpdater.Outcome
 import io.github.kenhendricks00.celadontv.scripts.ScriptVariant
 import io.github.kenhendricks00.celadontv.update.AppUpdateFlow
@@ -29,6 +30,11 @@ class SettingsActivity : AppCompatActivity() {
             setPreferencesFromResource(R.xml.preferences, rootKey)
             updateNow.setOnPreferenceClickListener { runUpdate(); true }
             requirePreference(KEY_LICENSES).setOnPreferenceClickListener { showLicenses(); true }
+            requirePreference(AppSettings.KEY_SAVE_DIAGNOSTICS).setOnPreferenceClickListener { saveDiagnostics(); true }
+            requirePreference(AppSettings.KEY_DIAGNOSTICS).setOnPreferenceChangeListener { _, enabled ->
+                if (enabled == false) Diagnostics.log(requireContext()).clear()
+                true
+            }
             requirePreference(AppSettings.KEY_CHECK_APP_UPDATE).apply {
                 summary = getString(R.string.pref_check_app_update_summary, BuildConfig.VERSION_NAME)
                 setOnPreferenceClickListener { appUpdates.checkNow(); true }
@@ -65,6 +71,15 @@ class SettingsActivity : AppCompatActivity() {
                 is Outcome.UpToDate -> getString(R.string.update_up_to_date, variant.key, outcome.version)
                 is Outcome.Failed -> getString(R.string.update_failed, variant.key, outcome.error.message)
             }
+        }
+
+        private fun saveDiagnostics() {
+            val message = try {
+                Diagnostics.save(requireContext())?.let { getString(R.string.diagnostics_saved, it) } ?: getString(R.string.diagnostics_empty)
+            } catch (e: Exception) {
+                getString(R.string.diagnostics_failed, e.message)
+            }
+            Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
         }
 
         private fun showLicenses() {

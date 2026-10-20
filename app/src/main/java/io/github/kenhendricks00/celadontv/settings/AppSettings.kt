@@ -17,6 +17,8 @@ class AppSettings(context: Context) {
 
     val appUpdateCheck: Boolean get() = prefs.getBoolean(KEY_APP_UPDATE_CHECK, true)
 
+    val diagnostics: Boolean get() = prefs.getBoolean(KEY_DIAGNOSTICS, false)
+
     var lastAppUpdateCheck: Long
         get() = prefs.getLong(KEY_LAST_APP_UPDATE_CHECK, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_APP_UPDATE_CHECK, value).apply()
@@ -28,6 +30,8 @@ class AppSettings(context: Context) {
         const val KEY_UPDATE_NOW = "update_now"
         const val KEY_APP_UPDATE_CHECK = "app_update_check"
         const val KEY_CHECK_APP_UPDATE = "check_app_update"
+        const val KEY_DIAGNOSTICS = "diagnostics"
+        const val KEY_SAVE_DIAGNOSTICS = "save_diagnostics"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val KEY_LAST_APP_UPDATE_CHECK = "last_app_update_check"
     }

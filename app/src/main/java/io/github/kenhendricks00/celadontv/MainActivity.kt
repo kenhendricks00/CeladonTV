@@ -20,6 +20,8 @@ import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ProgressBar
+import io.github.kenhendricks00.celadontv.diagnostics.Diagnostics
+import io.github.kenhendricks00.celadontv.diagnostics.DiagnosticsBridge
 import io.github.kenhendricks00.celadontv.settings.AppSettings
 import io.github.kenhendricks00.celadontv.settings.SettingsActivity
 import io.github.kenhendricks00.celadontv.update.AppUpdateFlow
@@ -44,6 +46,7 @@ class MainActivity : Activity() {
     }
 
     private var backLongPressed = false
+    private var diagnosticsBridge: DiagnosticsBridge? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,6 +75,7 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.offline_retry).setOnClickListener { retry() }
         connectivity.registerDefaultNetworkCallback(networkCallback)
         injector = ScriptInjector(webView)
+        syncDiagnostics()
         injector.apply(pageScripts())
         webView.loadUrl(TwitchTv.HOME_URL)
         webView.requestFocus()
@@ -84,6 +88,7 @@ class MainActivity : Activity() {
         super.onResume()
         webView.onResume()
         appUpdates.onResume()
+        syncDiagnostics()
         if (injector.apply(pageScripts())) webView.reload()
     }
 
@@ -131,7 +136,20 @@ class MainActivity : Activity() {
         return true
     }
 
-    private fun pageScripts() = listOf(readScriptAsset(SETTINGS_ROW_SCRIPT)) + AdBlock.scripts(this, settings)
+    // The marker script makes turning diagnostics on or off change the script list, which
+    // reloads the page so the bridge below is added or removed.
+    private fun pageScripts() = listOf(readScriptAsset(SETTINGS_ROW_SCRIPT)) + AdBlock.scripts(this, settings) +
+        listOfNotNull(DIAGNOSTICS_MARKER.takeIf { settings.diagnostics })
+
+    /** Adds `window.CeladonTVDiagnostics` only while the user has diagnostics turned on. */
+    private fun syncDiagnostics() {
+        if (settings.diagnostics && diagnosticsBridge == null) {
+            diagnosticsBridge = DiagnosticsBridge(Diagnostics.log(this)).also { webView.addJavascriptInterface(it, DiagnosticsBridge.JS_NAME) }
+        } else if (!settings.diagnostics && diagnosticsBridge != null) {
+            webView.removeJavascriptInterface(DiagnosticsBridge.JS_NAME)
+            diagnosticsBridge = null
+        }
+    }
 
     private fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
 
@@ -168,7 +186,10 @@ class MainActivity : Activity() {
     }
 
     private inner class Client : WebViewClient() {
-        override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) = injector.onPageStarted(url)
+        override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+            diagnosticsBridge?.record("page started: " + url.substringBefore('?'))
+            injector.onPageStarted(url)
+        }
 
         override fun onPageFinished(view: WebView, url: String) {
             if (url.startsWith(TwitchTv.ORIGIN)) hideLoading()
@@ -183,6 +204,7 @@ class MainActivity : Activity() {
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             Log.w(TAG, "WebView renderer gone; recreating")
+            diagnosticsBridge?.record("WebView renderer gone")
             recreate()
             return true
         }
@@ -205,5 +227,6 @@ class MainActivity : Activity() {
     private companion object {
         const val TAG = "CeladonTV"
         const val SETTINGS_ROW_SCRIPT = "celadontv-settings-row.js"
+        const val DIAGNOSTICS_MARKER = "window.__ctvDiagnostics = true;"
     }
 }

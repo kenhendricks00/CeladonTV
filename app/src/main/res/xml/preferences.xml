@@ -42,6 +42,20 @@
             app:title="@string/pref_check_app_update" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_category_diagnostics">
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="diagnostics"
+            app:summary="@string/pref_diagnostics_summary"
+            app:title="@string/pref_diagnostics" />
+
+        <Preference
+            app:dependency="diagnostics"
+            app:key="save_diagnostics"
+            app:summary="@string/pref_save_diagnostics_summary"
+            app:title="@string/pref_save_diagnostics" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/pref_category_about">
         <Preference
             app:key="licenses"
