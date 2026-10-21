@@ -241,7 +241,7 @@
         function recover(why) {
             const now = Date.now();
             if (!budget.take(now)) {
-                record('recover skipped (budget used up): ' + why);
+                record('recover held back (at most 3 in 10 minutes, 20s apart): ' + why);
                 return false;
             }
             try {

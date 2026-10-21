@@ -330,7 +330,7 @@ test('reopens the channel when Twitch shows its playback error screen, without l
     // in 10 minutes, at least 20 seconds apart.
     tv.tick(10 * 60000 - 6000);
     assert.equal(tv.records.filter((r) => r === 'RELOAD').length, 3);
-    assert.ok(tv.records.some((r) => r.startsWith('recover skipped')));
+    assert.ok(tv.records.some((r) => r.startsWith('recover held back')));
 });
 
 test('recoveries share a budget that survives the reloads they cause', () => {
