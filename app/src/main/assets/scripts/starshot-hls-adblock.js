@@ -232,37 +232,96 @@
         return grid.sn + Math.round((pdt - grid.pdt) / grid.step);
     }
 
+    // Where a segment's cuts fall relative to the grid, to the nearest 100 ms. Segments of the
+    // same phase line up cut for cut; after an ad break Twitch resumes the main stream on
+    // other cuts (the last ad is trimmed, e.g. to 0.235s), so its live segments no longer line
+    // up with the backup's, though they are numbered alike.
+    function gridPhase(grid, pdt) {
+        let phase = (((pdt - grid.pdt) % grid.step) + grid.step) % grid.step;
+        if (phase > grid.step - 50) phase -= grid.step;
+        return Math.round(phase / 100);
+    }
+
     function keepSplicedTag(tag, fromMain) {
         if (tag.startsWith('#EXT-X-MAP') || tag === '#EXT-X-DISCONTINUITY') return false;
         if (tag.startsWith('#EXT-X-DATERANGE')) return fromMain && !hasAdTags(tag);
         return true;
     }
 
+    // A rendition's identity: segments of renditions with the same key are interchangeable
+    // (byte-identical at the same broadcast time); between different keys the resolution,
+    // frame rate or H.264 profile changes.
+    function variantKey(rendition) {
+        return rendition ? `${rendition.resolution}@${Math.round(rendition.frameRate)}|${rendition.codecs}` : null;
+    }
+
+    // What one playlist URL has handed the player on the grid: the segment given for each
+    // number (so a reload never swaps a segment's source under the player) and the numbers
+    // where the rendition changes, which carry a discontinuity.
+    function spliceMemory() {
+        return { bySn: new Map(), switches: new Set(), droppedSwitches: 0 };
+    }
+
     // Joins the live segments of the main and backup playlists on the grid (main wins where
-    // both have one) and returns the contiguous run that reaches the newest segment.
-    function splice(main, backup, grid) {
-        const bySn = new Map();
+    // both offer a new number) and returns the contiguous run that reaches the newest one.
+    //
+    // Wherever the stream changes (a backup at another resolution, frame rate or profile than
+    // the one playing, or segments cut at other points, as the main stream is after a break)
+    // an EXT-X-DISCONTINUITY is written: hls.js sets up the decoder for an MPEG-TS stream from
+    // its first segments and keeps one timeline until a discontinuity, and a TV's hardware
+    // decoder fails on parameters or timestamps that jump without one ("An error occurred
+    // while playing this content"). The EXT-X-DISCONTINUITY-SEQUENCE counts the ones that
+    // have slid out, so every reload numbers them alike.
+    function splice(main, backup, grid, memory = spliceMemory(), keys = {}) {
+        const mainKey = keys.main || 'main';
+        const backupKey = keys.backup || 'backup';
+        const offered = new Map();
         const add = (seg, fromMain) => {
-            if (!seg.isAd && Number.isFinite(seg.pdt)) bySn.set(gridSn(grid, seg.pdt), { seg, fromMain });
+            if (!seg.isAd && Number.isFinite(seg.pdt)) {
+                offered.set(gridSn(grid, seg.pdt), { seg, fromMain, key: (fromMain ? mainKey : backupKey) + '~' + gridPhase(grid, seg.pdt) });
+            }
         };
         if (backup) backup.segments.forEach((s) => add(s, false));
         main.segments.forEach((s) => add(s, true));
-        if (!bySn.size) return null;
-        const end = Math.max(...bySn.keys());
+        if (!offered.size) return null;
+        for (const sn of [...offered.keys()].sort((a, b) => a - b)) {
+            if (memory.bySn.has(sn)) continue;
+            const entry = offered.get(sn);
+            const previous = memory.bySn.get(sn - 1);
+            if (previous && previous.key !== entry.key) memory.switches.add(sn);
+            memory.bySn.set(sn, entry);
+        }
+        const end = Math.max(...offered.keys());
         let start = end;
-        while (bySn.has(start - 1) && end - start < MAX_SPLICED_SEGMENTS - 1) start--;
+        while (offered.has(start - 1) && end - start < MAX_SPLICED_SEGMENTS - 1) start--;
+        for (const sn of memory.bySn.keys()) if (sn < start - MAX_SPLICED_SEGMENTS) memory.bySn.delete(sn);
+        for (const sn of memory.switches) {
+            if (sn < start - MAX_SPLICED_SEGMENTS) {
+                memory.switches.delete(sn);
+                memory.droppedSwitches++;
+            }
+        }
+        let discontinuitySequence = memory.droppedSwitches;
+        for (const sn of memory.switches) if (sn < start) discontinuitySequence++;
         const header = (main.segments.length || !backup ? main.header : backup.header)
             .filter((l) => !l.startsWith('#EXT-X-MEDIA-SEQUENCE:') && !l.startsWith('#EXT-X-DISCONTINUITY-SEQUENCE:'));
         const lines = [...header, '#EXT-X-MEDIA-SEQUENCE:' + start];
+        if (discontinuitySequence > 0) lines.push('#EXT-X-DISCONTINUITY-SEQUENCE:' + discontinuitySequence);
         let map = null;
         let fromBackup = 0;
+        let discontinuities = 0;
         for (let sn = start; sn <= end; sn++) {
-            const { seg, fromMain } = bySn.get(sn);
+            const { seg, fromMain } = memory.bySn.get(sn);
+            if (memory.switches.has(sn)) {
+                lines.push('#EXT-X-DISCONTINUITY');
+                discontinuities++;
+                map = null;
+            }
             if (seg.map && seg.map !== map) lines.push((map = seg.map));
             if (!fromMain) fromBackup++;
             lines.push(...seg.tags.filter((t) => keepSplicedTag(t, fromMain)), seg.uri);
         }
-        return { playlist: lines.join('\n') + '\n', start, end, fromBackup };
+        return { playlist: lines.join('\n') + '\n', start, end, fromBackup, discontinuities };
     }
 
     // ---- Filter state -------------------------------------------------------------------
@@ -276,7 +335,8 @@
     // quality level of a session shares its numbering, so this is kept per session.
     const playedAds = new Map();
 
-    // Playback session -> { grid, backup, backupAt, backupType, liveAfterAds }.
+    // Playback session -> { grid, liveAfterAds, playlists }, where `playlists` maps each of the
+    // session's playlist URLs (one per quality level) to its own backup and splice memory.
     const sessions = new Map();
 
     let now = () => Date.now();
@@ -287,8 +347,16 @@
     }
 
     function sessionState(session) {
-        if (!sessions.has(session)) sessions.set(session, { grid: null, backup: null, backupAt: 0, backupType: null, liveAfterAds: false });
+        if (!sessions.has(session)) sessions.set(session, { grid: null, liveAfterAds: false, playlists: new Map() });
         return sessions.get(session);
+    }
+
+    function playlistState(state, url) {
+        const key = url.split('?')[0];
+        if (!state.playlists.has(key)) {
+            state.playlists.set(key, { backup: null, backupAt: 0, backupType: null, backupKey: null, memory: spliceMemory(), announced: false });
+        }
+        return state.playlists.get(key);
     }
 
     // What the player is being given during an ad break, for the on-screen notice and the
@@ -333,8 +401,8 @@
     // playlist to hold yet (joining during a preroll), the ads are passed through.
     //
     // `backupText` is the freshest backup playlist for this one (undefined: no news, null:
-    // no backup without ads could be found).
-    function filterPlaylist(url, text, backupText, backupType) {
+    // no backup without ads could be found), `backupRendition` the rendition it plays.
+    function filterPlaylist(url, text, backupText, backupType, backupRendition) {
         if (typeof text !== 'string') return text;
         if (isMasterPlaylist(text)) {
             rememberMaster(url, text);
@@ -343,29 +411,31 @@
         if (!text.includes('#EXTINF')) return text;
         const session = sessionKey(url, text);
         const state = sessionState(session);
+        const level = playlistState(state, url);
         if (backupText !== undefined) {
-            state.backup = backupText ? timeline(backupText) : null;
-            state.backupAt = now();
-            state.backupType = backupText ? backupType || null : null;
+            level.backup = backupText ? timeline(backupText) : null;
+            level.backupAt = now();
+            level.backupType = backupText ? backupType || null : null;
+            level.backupKey = backupText ? variantKey(backupRendition) : null;
         }
         lastPlaylistAt = now();
-        const backup = state.backup && now() - state.backupAt < BACKUP_FRESH_MS ? state.backup : null;
+        const backup = level.backup && now() - level.backupAt < BACKUP_FRESH_MS ? level.backup : null;
         const result = stripAds(text, playedAds.has(session) ? playedAds.get(session) : -1);
         if (playedAds.has(session)) playedAds.set(session, result.playedThrough);
         const adsAtEdge = !result.complete;
         if (playedAds.has(session) && result.complete && result.kept !== 0) state.liveAfterAds = true;
         const log = (decision, out) => () =>
             `playlist ${shortId(session)}/${shortId(url.split('?')[0])} ${decision} in=${shape(text)} out=${shape(out)}` +
-            (state.backupType ? ` backup=${state.backupType}` : '');
+            (level.backupType ? ` backup=${level.backupType}` + (level.backupKey && level.backupKey !== mainVariantKey(url) ? ' (other rendition)' : '') : '');
 
         if (state.grid || (adsAtEdge && backup && backupAllowed(session))) {
             const main = timeline(text);
             if (!state.grid) state.grid = makeGrid(gridAnchor(url, main, backup));
-            const spliced = splice(main, backup, state.grid);
+            const spliced = splice(main, backup, state.grid, level.memory, { main: mainVariantKey(url), backup: level.backupKey });
             if (spliced && (!adsAtEdge || spliced.fromBackup > 0)) {
                 lastLive.set(url, spliced.playlist);
-                if (adsAtEdge && !state.announced) console.log(LOG_PREFIX + ' ad break: playing the ' + state.backupType + ' stream');
-                state.announced = adsAtEdge;
+                if (adsAtEdge && !level.announced) console.log(LOG_PREFIX + ' ad break: playing the ' + level.backupType + ' stream');
+                level.announced = adsAtEdge;
                 report(adsAtEdge ? 'backup' : 'none', log(adsAtEdge ? 'spliced' : 'live', spliced.playlist));
                 return spliced.playlist;
             }
@@ -471,6 +541,15 @@
         scheduleWarmUp();
     }
 
+    // The rendition a main playlist URL plays, from the master playlist it was listed in.
+    function mainRendition(url) {
+        return backupConfig.renditions.find((r) => r.url.split('?')[0] === url.split('?')[0]) || null;
+    }
+
+    function mainVariantKey(url) {
+        return variantKey(mainRendition(url)) || 'main';
+    }
+
     function rememberGqlHeaders(headers) {
         const get = (name) => {
             if (!headers) return null;
@@ -527,35 +606,41 @@
         return parseMaster(await master.text(), usher.href);
     }
 
-    // The first backup player type whose stream has no ads at its live edge right now, at
-    // the rendition closest to the one playing.
+    // A backup whose stream has no ads at its live edge right now. Types offering exactly the
+    // rendition playing come first: their segments are byte-identical to it, so the switch is
+    // invisible. Otherwise the first type with a clean stream, at the closest rendition.
     async function fetchBackup(mainUrl) {
-        const wanted = backupConfig.renditions.find((r) => r.url.split('?')[0] === mainUrl.split('?')[0]) || null;
-        for (const type of BACKUP_PLAYER_TYPES) {
-            const entry = backupEntry(type);
-            if (entry.adsUntil > now()) continue;
-            try {
-                // A session is kept as long as it works: a new one would start with a preroll.
-                if (!entry.renditions) {
-                    entry.renditions = await fetchBackupRenditions(type);
-                    entry.at = now();
+        const wanted = mainRendition(mainUrl);
+        const wantedKey = variantKey(wanted);
+        const tried = new Set();
+        for (const exact of wantedKey ? [true, false] : [false]) {
+            for (const type of BACKUP_PLAYER_TYPES) {
+                const entry = backupEntry(type);
+                if (entry.adsUntil > now()) continue;
+                try {
+                    // A session is kept as long as it works: a new one would start with a preroll.
+                    if (!entry.renditions) {
+                        entry.renditions = await fetchBackupRenditions(type);
+                        entry.at = now();
+                    }
+                    const rendition = exact ? entry.renditions.find((r) => variantKey(r) === wantedKey) : pickRendition(entry.renditions, wanted);
+                    if (!rendition || tried.has(type + ' ' + rendition.url)) continue;
+                    tried.add(type + ' ' + rendition.url);
+                    const response = await realFetch(rendition.url);
+                    if (!response.ok) throw new Error('playlist ' + response.status);
+                    const text = await response.text();
+                    // A new backup session may start with a preroll; only its live edge matters.
+                    if (!stripAds(text).complete) {
+                        entry.adsUntil = now() + 30000;
+                        diagnose(() => `backup ${type}: has ads too`);
+                        continue;
+                    }
+                    diagnose(() => `backup ${type}: ${rendition.resolution} ok` + (variantKey(rendition) === wantedKey ? '' : ' (other rendition)'));
+                    return { type, text, rendition };
+                } catch (e) {
+                    entry.renditions = null;
+                    diagnose(() => `backup ${type} failed: ${e && e.message}`);
                 }
-                const rendition = pickRendition(entry.renditions, wanted);
-                if (!rendition) throw new Error('no renditions');
-                const response = await realFetch(rendition.url);
-                if (!response.ok) throw new Error('playlist ' + response.status);
-                const text = await response.text();
-                // A new backup session may start with a preroll; only its live edge matters.
-                if (!stripAds(text).complete) {
-                    entry.adsUntil = now() + 30000;
-                    diagnose(() => `backup ${type}: has ads too`);
-                    continue;
-                }
-                diagnose(() => `backup ${type}: ${rendition.resolution} ok`);
-                return { type, text };
-            } catch (e) {
-                entry.renditions = null;
-                diagnose(() => `backup ${type} failed: ${e && e.message}`);
             }
         }
         backupFailedUntil = now() + 10000;
@@ -622,7 +707,7 @@
                         if (typeof raw === 'string' && wantsBackup(url, raw)) {
                             withTimeout(fetchBackup(url), BACKUP_WAIT_MS)
                                 .then(
-                                    (backup) => filterPlaylist(url, raw, backup ? backup.text : null, backup && backup.type),
+                                    (backup) => filterPlaylist(url, raw, backup ? backup.text : null, backup && backup.type, backup && backup.rendition),
                                     () => filterPlaylist(url, raw),
                                 )
                                 .then((filtered) => {
@@ -677,6 +762,8 @@
             pickRendition,
             timeline,
             splice,
+            spliceMemory,
+            variantKey,
             makeGrid,
             hookXhr,
             hookFetch,

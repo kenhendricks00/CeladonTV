@@ -317,3 +317,199 @@ test('opens the warm backup sessions as soon as a stream starts', async () => {
     assert.deepEqual(tokens.sort(), ['embed', 'popout']);
     assert.ok(requests.some((r) => r.url.endsWith('/embed.m3u8')) && requests.some((r) => r.url.endsWith('/popout.m3u8')), 'their playlists are opened');
 });
+
+// ---- Renditions: what the TV's hardware decoder needs ----------------------------------
+
+const MAIN_720 = 'https://use12.playlist.ttvnw.net/v1/playlist/main-720p.m3u8';
+const MAIN_360 = 'https://use12.playlist.ttvnw.net/v1/playlist/main-360p.m3u8';
+const R720 = { resolution: '1280x720', height: 720, frameRate: 60, codecs: 'avc1.4D401F,mp4a.40.2', url: 'https://x/720.m3u8' };
+const R360 = { resolution: '640x360', height: 360, frameRate: 30, codecs: 'avc1.4D401F,mp4a.40.2', url: 'https://x/360.m3u8' };
+
+function rememberMainMaster() {
+    filterPlaylist(
+        'https://usher.ttvnw.net/api/channel/hls/somechannel.m3u8?player_type=pulsar&sig=a&token=b',
+        '#EXTM3U\n' +
+            `#EXT-X-STREAM-INF:BANDWIDTH=3422999,RESOLUTION=1280x720,CODECS="avc1.4D401F,mp4a.40.2",FRAME-RATE=60.000\n${MAIN_720}\n` +
+            `#EXT-X-STREAM-INF:BANDWIDTH=630000,RESOLUTION=640x360,CODECS="avc1.4D401F,mp4a.40.2",FRAME-RATE=30.000\n${MAIN_360}\n`,
+    );
+}
+
+// Each segment's discontinuity count as hls.js derives it: EXT-X-DISCONTINUITY-SEQUENCE plus
+// the EXT-X-DISCONTINUITY tags above it in the playlist.
+function discontinuityCounts(text) {
+    const lines = text.split('\n');
+    let cc = Number((lines.find((l) => l.startsWith('#EXT-X-DISCONTINUITY-SEQUENCE:')) || ':0').split(':')[1]);
+    let sn = Number(lines.find((l) => l.startsWith('#EXT-X-MEDIA-SEQUENCE:')).split(':')[1]);
+    const out = [];
+    for (const line of lines) {
+        if (line === '#EXT-X-DISCONTINUITY') cc++;
+        if (line.startsWith('https://') && line.endsWith('.ts')) out.push({ sn: sn++, cc, uri: line.split('/').pop() });
+    }
+    return out;
+}
+
+function playThroughBreak(backupRendition) {
+    freshFilter();
+    rememberMainMaster();
+    const ccBySn = new Map();
+    const outputs = [];
+    for (let edge = 30; edge <= 90; edge++) {
+        clock = BASE + edge * 2000;
+        const inBreak = edge >= 41 && edge < 57 + 16;
+        const out = filterPlaylist(MAIN_720, mainWindow(edge, [41, 57]), inBreak ? backupWindow(edge) : undefined, 'autoplay', backupRendition);
+        outputs.push(out);
+        const segs = discontinuityCounts(out);
+        assert.ok(segs.every((s) => !s.uri.includes('ad-')), `no ads at ${edge}`);
+        for (const s of segs) {
+            if (ccBySn.has(s.sn)) assert.equal(ccBySn.get(s.sn), s.cc, `segment ${s.sn} keeps its discontinuity count at ${edge}`);
+            ccBySn.set(s.sn, s.cc);
+        }
+        for (let i = 1; i < segs.length; i++) {
+            const switched = segs[i].uri[0] !== segs[i - 1].uri[0];
+            const rendition = backupRendition === R720 ? false : switched;
+            assert.equal(segs[i].cc !== segs[i - 1].cc, rendition, `discontinuity exactly where the rendition changes (${segs[i - 1].uri} -> ${segs[i].uri})`);
+        }
+    }
+    return outputs;
+}
+
+test('a backup at another rendition is spliced in behind a discontinuity, numbered alike on every reload', () => {
+    // The main stream plays 720p60; the only clean backup offers 360p30. Without a
+    // discontinuity hls.js would hand the TV's hardware decoder a mid-stream change of
+    // resolution and frame rate in the same MPEG-TS stream, which it fails on.
+    const outputs = playThroughBreak(R360);
+    assert.ok(outputs.some((o) => o.includes('#EXT-X-DISCONTINUITY\n')), 'switching to the backup and back is marked');
+    assert.ok(outputs.some((o) => /#EXT-X-DISCONTINUITY-SEQUENCE:[1-9]/.test(o)), 'and counted once it slides out');
+});
+
+test('a backup at the same rendition needs no discontinuity: its segments are the same', () => {
+    const outputs = playThroughBreak(R720);
+    assert.ok(outputs.every((o) => !o.includes('#EXT-X-DISCONTINUITY')));
+});
+
+test('each quality level keeps its own backup, so switching quality never mixes renditions', () => {
+    freshFilter();
+    rememberMainMaster();
+    clock = BASE + 40 * 2000;
+    filterPlaylist(MAIN_720, mainWindow(40, [41, 57]));
+    filterPlaylist(MAIN_360, mainWindow(40, [41, 57]));
+    clock = BASE + 45 * 2000;
+    const at720 = segments(filterPlaylist(MAIN_720, mainWindow(45, [41, 57]), backupWindow(45), 'site', R720));
+    assert.ok(at720[at720.length - 1].uri.startsWith('b-'), 'the 720p level plays its 720p backup');
+    // hls.js switches to the 360p level mid-break; that level has no backup of its own yet.
+    const at360 = segments(filterPlaylist(MAIN_360, mainWindow(45, [41, 57])));
+    assert.ok(at360.every((s) => !s.uri.startsWith('b-')), 'the 720p backup is never spliced into the 360p level');
+});
+
+function makeFakeXHR(server) {
+    class XHR {
+        open(method, url) {
+            this.url = url;
+            this.readyState = 1;
+        }
+        send() {
+            setTimeout(() => {
+                this.readyState = 4;
+                this.status = 200;
+                this.text = server(this.url);
+                if (this.handler) this.handler.call(this, { type: 'readystatechange' });
+            }, 0);
+        }
+    }
+    Object.defineProperty(XHR.prototype, 'responseText', { configurable: true, get() { return this.text; } });
+    Object.defineProperty(XHR.prototype, 'response', { configurable: true, get() { return this.text; } });
+    Object.defineProperty(XHR.prototype, 'onreadystatechange', {
+        configurable: true,
+        get() { return this.handler; },
+        set(handler) { this.handler = handler; },
+    });
+    return XHR;
+}
+
+test('prefers a backup type offering exactly the rendition playing over an earlier type that does not', async () => {
+    freshFilter();
+    const usher = 'https://usher.ttvnw.net/api/channel/hls/somechannel.m3u8?player_type=pulsar&sig=main&token=main';
+    const masterFor = (type) => {
+        // embed (tried first) only offers 360p, as autoplay and picture-by-picture do.
+        const renditions = type === 'embed' ? [R360] : [R720, R360];
+        return '#EXTM3U\n' + renditions.map((r) => `#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=${r.resolution},CODECS="${r.codecs}",FRAME-RATE=${r.frameRate}.000\nhttps://use12.playlist.ttvnw.net/v1/playlist/${type}-${r.height}p.m3u8\n`).join('');
+    };
+    const requests = [];
+    const win = {
+        fetch: async (url, init) => {
+            requests.push(String(url));
+            if (url === 'https://gql.twitch.tv/gql') {
+                const { variables } = JSON.parse(init.body);
+                if (!variables) return new Response('{}');
+                return new Response(JSON.stringify({ data: { streamPlaybackAccessToken: { value: '{}', signature: 's' } } }));
+            }
+            if (url.startsWith('https://usher.ttvnw.net/')) return new Response(masterFor(new URL(url).searchParams.get('player_type')));
+            if (/\/(embed|popout|site)-\d+p\.m3u8/.test(url)) return new Response(backupWindow(45));
+            return new Response('', { status: 404 });
+        },
+    };
+    filter.hookFetch(win);
+    let serve = () => '';
+    const XHR = makeFakeXHR((url) => serve(url));
+    filter.hookXhr(XHR);
+    await win.fetch('https://gql.twitch.tv/gql', { method: 'POST', headers: { 'Client-Id': 'tv-client' }, body: '{}' });
+    serve = () => `#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=3422999,RESOLUTION=1280x720,CODECS="avc1.4D401F,mp4a.40.2",FRAME-RATE=60.000\n${MAIN_720}\n`;
+    await load(XHR, usher);
+    clock = BASE + 40 * 2000;
+    serve = () => mainWindow(40, [41, 57]);
+    await load(XHR, MAIN_720);
+    clock = BASE + 45 * 2000;
+    serve = () => mainWindow(45, [41, 57]);
+    const out = await load(XHR, MAIN_720);
+    assert.ok(out.includes('/b-live-45.ts'), 'a backup stands in');
+    assert.ok(!out.includes('#EXT-X-DISCONTINUITY'), 'at the same rendition');
+    const fetched = requests.filter((u) => /\/(embed|popout|site)-\d+p\.m3u8/.test(u));
+    // embed's 360p playlist is opened once, by the warm-up when the stream starts; the break
+    // went straight to a type offering 720p.
+    assert.ok(fetched.filter((u) => u.includes('embed-360p')).length <= 1, `embed's other rendition was not tried for the break: ${fetched}`);
+    assert.ok(fetched.some((u) => u.includes('popout-720p')));
+});
+
+test('returning from the backup to main stream segments cut at other points never reuses a number, and is marked', () => {
+    // The real failure on Kenneth's TV: joined during a break, the main session playlist was
+    // ads of 2.002s with the last trimmed to 0.235s, so live came back 265ms off the cuts of
+    // the backup's segments. 0.2.4 gave the main segment a number the player had already
+    // loaded from the backup and ran on with overlapping timestamps; Twitch's player failed.
+    freshFilter();
+    rememberMainMaster();
+    const BREAK_END = BASE + 15 * 2002 + 235;
+    const mainAt = (edgeMs) => {
+        const segs = [];
+        for (let i = 0; i < 16; i++) {
+            const pdt = BASE + i * 2002;
+            if (pdt <= edgeMs) segs.push({ slot: 1000 + i, pdt, ad: true, dur: i === 15 ? 235 : 2002, daterange: i === 0 ? AD_DATERANGE : undefined });
+        }
+        for (let j = 0; BREAK_END + j * 2000 <= edgeMs; j++) segs.push({ slot: 2000 + j, pdt: BREAK_END + j * 2000 });
+        return media({ segments: segs, sequence: 0, prefix: 'm-', session: 'joined' });
+    };
+    const uriBySn = new Map();
+    const ccBySn = new Map();
+    let sawResume = false;
+    for (let t = 6; t <= 80; t += 2) {
+        clock = BASE + t * 1000;
+        const inBreak = clock < BREAK_END + 3000;
+        const out = filterPlaylist(MAIN_720, mainAt(clock), inBreak ? backupWindow(Math.floor(t / 2)) : undefined, 'site', R720);
+        const segs = discontinuityCounts(out);
+        assert.ok(segs.length > 0 && segs.every((s) => !s.uri.includes('ad-')), `no ads at ${t}s`);
+        for (const s of segs) {
+            if (uriBySn.has(s.sn)) assert.equal(uriBySn.get(s.sn), s.uri, `number ${s.sn} keeps its segment at ${t}s`);
+            uriBySn.set(s.sn, s.uri);
+            if (ccBySn.has(s.sn)) assert.equal(ccBySn.get(s.sn), s.cc, `number ${s.sn} keeps its discontinuity count at ${t}s`);
+            ccBySn.set(s.sn, s.cc);
+        }
+        for (let i = 1; i < segs.length; i++) {
+            if (segs[i - 1].uri.startsWith('b-') && segs[i].uri.startsWith('m-')) {
+                assert.notEqual(segs[i].cc, segs[i - 1].cc, `the return to main segments is marked at ${t}s`);
+                sawResume = true;
+            }
+        }
+    }
+    assert.ok(sawResume, 'playback went back to the main stream');
+    const last = discontinuityCounts(filterPlaylist(MAIN_720, mainAt(BASE + 80000)));
+    assert.ok(last[last.length - 1].uri.startsWith('m-live-'), 'and reaches its live edge');
+});
