@@ -56,9 +56,10 @@ test('the notice reads Blocking ads while the filter carries the player through 
     assert.equal(noticeText('none'), null);
 });
 
-// ---- The notice and the player's own controls -----------------------------------------
 
-const { coversControls, isShownIn, install } = require(path.join(__dirname, '../../main/assets/scripts/celadontv-playback-guard.js'));
+// ---- The notice, the player and the backstops ------------------------------------------
+
+const { coversControls, isShownIn, install, findPlayer, noticeVisible, createRecoveryBudget } = require(path.join(__dirname, '../../main/assets/scripts/celadontv-playback-guard.js'));
 
 const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
 
@@ -72,53 +73,94 @@ class FakeElement {
         this.computed = { display: 'block', visibility: 'visible', opacity: '1' };
         this.attributes = {};
         this.box = box;
+        this.currentTime = 0;
+        this.paused = false;
+        this.ended = false;
+        this.readyState = 4;
     }
     setAttribute(name, value) { this.attributes[name] = String(value); }
     getAttribute(name) { return name in this.attributes ? this.attributes[name] : null; }
     appendChild(child) { child.parentElement = this; this.children.push(child); return child; }
+    removeChild(child) { this.children = this.children.filter((c) => c !== child); child.parentElement = null; }
     append(...children) { children.forEach((c) => this.appendChild(c)); }
     get lastChild() { return this.children[this.children.length - 1]; }
     getBoundingClientRect() { return this.box; }
 }
 
-// A page shaped like Starshot's player: a controls layer, at opacity 0 until a key is
-// pressed, with a "Go Back" button exactly where the notice sits, and chat elsewhere.
-function fakePage() {
-    const body = new FakeElement('body', rect(0, 0, 1920, 1080));
-    const controls = body.appendChild(new FakeElement('div', rect(0, 0, 1440, 1080)));
+// Shaped like Starshot on the TV (960x540 CSS px): a full-screen player whose controls
+// layer sits at opacity 0 until a key is pressed (Go Back top-left, Follow bottom-right),
+// or the home screen, with its own nav links and no video at all.
+function fakeTv() {
+    const body = new FakeElement('body', rect(0, 0, 960, 540));
+    body.innerText = '';
+    const video = new FakeElement('video', rect(0, 0, 960, 540));
+    const controls = new FakeElement('div', rect(0, 0, 960, 540));
     controls.computed.opacity = '0';
     const goBack = controls.appendChild(new FakeElement('button', rect(36, 27, 133, 59)));
-    const chatLink = body.appendChild(new FakeElement('a', rect(1460, 20, 1900, 60)));
+    const follow = controls.appendChild(new FakeElement('button', rect(830, 420, 915, 452)));
+    const homeLogo = new FakeElement('a', rect(80, 45, 110, 80));
     let clock = 0;
     const timers = [];
     const listeners = {};
     const records = [];
+    const storage = {};
     const win = {
+        innerWidth: 960,
+        innerHeight: 540,
         document: {
             body,
             visibilityState: 'visible',
             createElement: (tag) => new FakeElement(tag),
-            querySelectorAll: () => [goBack, chatLink],
-            querySelector: () => null,
+            querySelectorAll: (selector) => {
+                const all = body.children.flatMap((c) => [c, ...c.children]);
+                if (selector === 'video') return all.filter((e) => e.tagName === 'VIDEO');
+                return all.filter((e) => e.tagName === 'BUTTON' || e.tagName === 'A');
+            },
+            querySelector: (selector) => win.document.querySelectorAll(selector)[0] || null,
         },
         getComputedStyle: (el) => el.computed,
         addEventListener: (type, fn) => (listeners[type] = listeners[type] || []).push(fn),
+        dispatchEvent: () => true,
         setTimeout: (fn, ms) => timers.push({ fn, at: clock + ms, every: 0 }) - 1,
         setInterval: (fn, ms) => timers.push({ fn, at: clock + ms, every: ms }) - 1,
         clearTimeout: (id) => {
             if (timers[id]) timers[id].fn = null;
         },
-        sessionStorage: { getItem: () => null, setItem: () => {} },
+        sessionStorage: { getItem: (k) => (k in storage ? storage[k] : null), setItem: (k, v) => { storage[k] = String(v); } },
         location: { reload: () => records.push('RELOAD') },
         CeladonTVDiagnostics: { record: (line) => records.push(line) },
     };
     const realNow = Date.now;
-    return {
+    // Everything the page sees happens on the fake clock.
+    const onClock = (fn) => {
+        Date.now = () => 1e12 + clock;
+        try {
+            fn();
+        } finally {
+            Date.now = realNow;
+        }
+    };
+    const tv = {
         win,
+        video,
         controls,
-        chatLink,
         records,
+        storage,
         notice: () => body.children.find((c) => c.id === 'celadontv-ad-notice'),
+        showing() {
+            const n = tv.notice();
+            return !!n && n.style.visibility === 'visible' && n.style.opacity === '1';
+        },
+        openPlayer() {
+            body.appendChild(video);
+            body.appendChild(controls);
+            body.removeChild(homeLogo);
+        },
+        goHome() {
+            body.removeChild(video);
+            body.removeChild(controls);
+            body.appendChild(homeLogo);
+        },
         tick(ms) {
             const end = clock + ms;
             for (;;) {
@@ -134,83 +176,126 @@ function fakePage() {
             clock = end;
             Date.now = realNow;
         },
-        emit(type, event) {
-            (listeners[type] || []).forEach((fn) => fn(event));
+        // The filter reports what it gives the player each time a playlist loads (~2s).
+        report(state, seconds = 0) {
+            const fire = () => onClock(() => (listeners['celadontv:adbreak'] || []).forEach((fn) => fn({ detail: { state } })));
+            fire();
+            for (let s = 2; s <= seconds; s += 2) {
+                tv.tick(2000);
+                tv.video.currentTime += 2;
+                fire();
+            }
+        },
+        key() {
+            onClock(() => (listeners.keydown || []).forEach((fn) => fn({ preventDefault() { throw new Error('keys must reach the player'); }, stopPropagation() { throw new Error('keys must reach the player'); } })));
         },
     };
+    body.appendChild(homeLogo);
+    return tv;
 }
 
-const showing = (page) => {
-    const n = page.notice();
-    return !!n && n.style.visibility === 'visible' && n.style.opacity === '1';
-};
+test('the notice shows only over the bare full-screen player while a break is being blocked', () => {
+    const tv = fakeTv();
+    install(tv.win);
+    tv.report('backup');
+    tv.tick(400);
+    assert.ok(!tv.showing(), 'never on the home screen (no player)');
 
-test('the notice never covers the player controls: it steps aside while they show and comes back after', () => {
-    const page = fakePage();
-    install(page.win);
-    page.emit('celadontv:adbreak', { detail: { state: 'backup' } });
-    page.tick(0);
-    assert.ok(showing(page), 'shown during a blocked break while the controls are hidden');
+    tv.openPlayer();
+    tv.report('backup', 4);
+    assert.ok(tv.showing(), 'shown over the playing video');
 
-    // A key press brings Starshot's controls up; the Go Back button is under the notice.
-    const keydown = {
-        defaultPrevented: false,
-        preventDefault() { this.defaultPrevented = true; },
-        stopPropagation() { throw new Error('must not stop key events'); },
-    };
-    page.controls.computed.opacity = '1';
-    page.emit('keydown', keydown);
-    page.tick(0);
-    assert.ok(!showing(page), 'out of the way at once when the controls appear');
-    assert.equal(page.notice().style.visibility, 'hidden');
-    assert.equal(keydown.defaultPrevented, false, 'the key still reaches the player');
+    // Any player UI coming up hides it, not just the button under it: here the controls
+    // layer fades in on a key press (Go Back top-left, Follow bottom-right).
+    tv.controls.computed.opacity = '1';
+    tv.key();
+    tv.tick(0);
+    assert.ok(!tv.showing(), 'out of the way as soon as the controls are up');
+    tv.controls.computed.opacity = '0.3';
+    tv.report('backup', 2);
+    assert.ok(!tv.showing(), 'still away while they fade');
+    tv.controls.computed.opacity = '0';
+    tv.report('backup', 2);
+    assert.ok(tv.showing(), 'back over the bare video');
 
-    // The controls fade out on their own; the notice returns within a check.
-    page.controls.computed.opacity = '0.02';
-    page.tick(200);
-    assert.ok(showing(page), 'back once the controls are gone');
-
-    // Controls showing without a key press are noticed too, even part-way through fading in.
-    page.controls.computed.opacity = '0.6';
-    page.tick(200);
-    assert.ok(!showing(page), 'steps aside for partly faded-in controls');
-    page.controls.computed.opacity = '0';
-    page.tick(200);
-    assert.ok(showing(page));
-
-    // Interactive elements elsewhere (chat) never hide it.
-    page.tick(1200);
-    assert.ok(showing(page));
-
-    // The break ends.
-    page.emit('celadontv:adbreak', { detail: { state: 'none' } });
-    page.tick(2000);
-    assert.equal(page.notice().style.visibility, 'hidden');
-    assert.ok(page.records.includes('notice: player controls showing, stepped aside'));
-    assert.ok(!page.records.includes('RELOAD'));
+    // The break ends: gone, and it stays gone through normal live playback.
+    tv.report('none', 2);
+    tv.report('none', 60);
+    assert.ok(!tv.showing());
+    assert.ok(tv.records.includes('break state cleared: the break ended'));
 });
 
-test('the notice can never take focus or pointer input', () => {
-    const page = fakePage();
-    install(page.win);
-    page.emit('celadontv:adbreak', { detail: { state: 'held' } });
-    page.tick(0);
-    const notice = page.notice();
-    assert.equal(notice.getAttribute('tabindex'), null);
+test('leaving the player clears the break, so the notice never follows to other screens', () => {
+    const tv = fakeTv();
+    install(tv.win);
+    tv.openPlayer();
+    tv.report('backup', 4);
+    assert.ok(tv.showing());
+
+    tv.goHome();
+    tv.tick(200);
+    assert.ok(!tv.showing(), 'hidden the moment the player closes');
+    assert.equal(tv.win.__ctvAdBreak.state, 'none');
+    tv.tick(30000);
+    assert.ok(!tv.showing(), 'and stays hidden on the home screen');
+
+    // Opening another channel does not bring the old break back; only a new report does.
+    tv.openPlayer();
+    tv.tick(2000);
+    assert.ok(!tv.showing());
+    tv.report('backup');
+    tv.tick(200);
+    assert.ok(tv.showing());
+});
+
+test('a break whose reports stop is cleared after 15 seconds', () => {
+    const tv = fakeTv();
+    install(tv.win);
+    tv.openPlayer();
+    tv.report('held', 2);
+    assert.ok(tv.showing());
+    tv.tick(16000);
+    assert.ok(!tv.showing());
+});
+
+test('the notice can never take focus, hover or pointer input', () => {
+    const tv = fakeTv();
+    install(tv.win);
+    tv.openPlayer();
+    tv.report('backup', 2);
+    const notice = tv.notice();
+    assert.equal(notice.getAttribute('tabindex'), '-1');
     assert.equal(notice.getAttribute('aria-hidden'), 'true');
     assert.equal(notice.inert, true);
     assert.match(notice.style.cssText, /pointer-events:none/);
+    assert.match(notice.style.cssText, /outline:none/);
 });
 
-test('only controls that overlap the notice and are actually showing count', () => {
-    const noticeRect = rect(34, 24, 160, 55);
+test('only a video filling most of the screen counts as the player', () => {
+    const viewport = { width: 960, height: 540 };
+    const at = (box) => ({ box });
+    const rectOf = (v) => v.box;
+    const shown = () => true;
+    assert.equal(findPlayer([at(rect(0, 0, 960, 540))], viewport, rectOf, shown).rect.width, 960, 'full screen');
+    assert.ok(findPlayer([at(rect(0, 0, 720, 405))], viewport, rectOf, shown), 'next to chat');
+    assert.equal(findPlayer([at(rect(40, 300, 240, 412))], viewport, rectOf, shown), null, 'a preview card');
+    assert.equal(findPlayer([], viewport, rectOf, shown), null, 'home screen');
+    assert.equal(findPlayer([at(rect(0, 0, 960, 540))], viewport, rectOf, () => false), null, 'a hidden video');
+    assert.equal(noticeVisible({ adState: 'backup', player: { rect: rect(0, 0, 960, 540) }, uiShown: false }), true);
+    assert.equal(noticeVisible({ adState: 'backup', player: null, uiShown: false }), false);
+    assert.equal(noticeVisible({ adState: 'backup', player: { rect: rect(0, 0, 960, 540) }, uiShown: true }), false);
+    assert.equal(noticeVisible({ adState: 'none', player: { rect: rect(0, 0, 960, 540) }, uiShown: false }), false);
+});
+
+test('only player UI that is actually showing counts', () => {
+    const area = rect(0, 0, 960, 540);
     const at = (box, opacity = '1') => ({ box, opacity });
     const rectOf = (c) => c.box;
     const shown = (c) => parseFloat(c.opacity) >= 0.05;
-    assert.equal(coversControls(noticeRect, [at(rect(36, 27, 133, 59))], rectOf, shown), true);
-    assert.equal(coversControls(noticeRect, [at(rect(36, 27, 133, 59), '0')], rectOf, shown), false, 'faded-out controls');
-    assert.equal(coversControls(noticeRect, [at(rect(160, 24, 300, 55))], rectOf, shown), false, 'touching, not overlapping');
-    assert.equal(coversControls(noticeRect, [at(rect(50, 30, 50, 30))], rectOf, shown), false, 'zero-sized');
+    assert.equal(coversControls(area, [at(rect(830, 420, 915, 452))], rectOf, shown), true);
+    assert.equal(coversControls(area, [at(rect(830, 420, 915, 452), '0')], rectOf, shown), false, 'faded out');
+    assert.equal(coversControls(area, [at(rect(960, 20, 1200, 60))], rectOf, shown), false, 'beside the video');
+    assert.equal(coversControls(area, [at(rect(50, 30, 50, 30))], rectOf, shown), false, 'zero-sized');
 });
 
 test('a control is showing only if nothing it sits in is hidden or transparent', () => {
@@ -226,4 +311,36 @@ test('a control is showing only if nothing it sits in is hidden or transparent',
     parent.s.visibility = 'visible';
     parent.s.display = 'none';
     assert.equal(shown(child), false);
+});
+
+test('reopens the channel when Twitch shows its playback error screen, without looping', () => {
+    const tv = fakeTv();
+    install(tv.win);
+    tv.openPlayer();
+    tv.report('backup', 2);
+    // Twitch replaces the player with "Oh bummer... An error occurred while playing this content".
+    tv.goHome();
+    tv.win.document.body.innerText = 'Oh bummer...\nAn error occurred while playing this content\nReload\nGo Back';
+    tv.tick(2000);
+    assert.ok(!tv.records.includes('RELOAD'), 'gives Twitch a moment first');
+    tv.tick(3000);
+    assert.equal(tv.records.filter((r) => r === 'RELOAD').length, 1, 'reopened once');
+
+    // The same page staying broken (a reload that keeps failing) is retried at most 3 times
+    // in 10 minutes, at least 20 seconds apart.
+    tv.tick(10 * 60000 - 6000);
+    assert.equal(tv.records.filter((r) => r === 'RELOAD').length, 3);
+    assert.ok(tv.records.some((r) => r.startsWith('recover skipped')));
+});
+
+test('recoveries share a budget that survives the reloads they cause', () => {
+    const budget = createRecoveryBudget({ max: 3, windowMs: 600000, minGapMs: 20000 });
+    assert.equal(budget.take(0), true);
+    assert.equal(budget.take(10000), false, 'too soon');
+    assert.equal(budget.take(30000), true);
+    assert.equal(budget.take(60000), true);
+    assert.equal(budget.take(90000), false, 'three in ten minutes');
+    assert.equal(budget.take(600001), true, 'the first one has aged out');
+    const reloaded = createRecoveryBudget({ history: budget.history });
+    assert.equal(reloaded.take(600002), false, 'remembered across the reload');
 });

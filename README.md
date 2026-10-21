@@ -120,8 +120,9 @@ origin, so they run before any page script. WebViews too old for that feature fa
    It goes first so its own requests use the browser's `fetch`: the TwitchAdSolutions scripts
    rewrite access-token requests made through theirs.
 2. **`celadontv-playback-guard.js`** (this repo). Shows a small "Blocking ads" notice in the
-   top-left corner during a break, and reopens the channel if the player stalls for 20 seconds
-   outside a break the adapter is holding (at most once every 3 minutes).
+   top-left corner of the full-screen player during a break (never over Twitch's own UI), and
+   reopens the channel if the player stalls for 20 seconds outside a break the adapter is
+   holding, or if Twitch shows its playback error screen (at most 3 times in 10 minutes).
 3. **An upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script**:
    `vaft` (default, upstream's recommendation) or `video-swap-new`. Both are bundled in the APK.
    Once a day the app fetches the latest versions from GitHub; a download is kept only if its
