@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased (0.2.3)
+## Unreleased (0.2.4)
+
+#### **🐞 Bug Fixes**
+- The "Blocking ads" notice no longer covers the player controls. When the controls come up (for example the Go Back button in the top-left corner), the notice fades out of the way and comes back once they hide. It can never take focus or get in the way of the remote.
+
+## v0.2.3 (10/20/2026)
 
 #### **✨ Features**
 - Keeps the stream playing through ad breaks. When Twitch starts an ad break, CeladonTV switches to the same broadcast from another of Twitch's players that isn't showing ads, picking the same quality where it can (sometimes a lower one), and switches back when the break ends. A small "Blocking ads" notice shows in the top-left corner while it does.
