@@ -1,7 +1,8 @@
 // CeladonTV playback guard, injected with the ad filter (starshot-hls-adblock.js).
 //
 // - Shows a small "Blocking ads" notice in the top-left corner while the filter is
-//   carrying the player through an ad break, and hides it when the break ends.
+//   carrying the player through an ad break, and hides it when the break ends. It steps
+//   aside (fades out) while any of the player's own controls show where it sits.
 // - Backstop for a player that stops for good: if the video sits stalled for 20 seconds
 //   outside a break the filter is knowingly holding, Twitch's page is reloaded, which
 //   reopens the channel. At most once every 3 minutes.
@@ -14,6 +15,39 @@
     const NOTICE_LINGER_MS = 1500;
     const BREAK_STALE_MS = 15000;
     const LAST_RECOVER_KEY = 'celadontv.lastRecover';
+    const CONTROLS_CHECK_MS = 200;
+    const CONTROLS_RESCAN_MS = 1000;
+    const INTERACTIVE = 'a[href],button,input,select,textarea,[role="button"],[role="link"],[role="menuitem"],[tabindex]:not([tabindex="-1"])';
+
+    function intersects(a, b) {
+        return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    }
+
+    // Whether the notice, at `noticeRect`, would sit on top of player controls that are on
+    // screen. `controls` are the page's interactive elements; a control counts when its box
+    // overlaps the notice and it is actually showing (Starshot keeps its player controls,
+    // like the top-left "Go Back" button, in the page at opacity 0 while they are hidden).
+    function coversControls(noticeRect, controls, rectOf, isShown) {
+        return controls.some((el) => {
+            const r = rectOf(el);
+            return r.width > 0 && r.height > 0 && intersects(noticeRect, r) && isShown(el);
+        });
+    }
+
+    // Effective visibility of an element: hidden if it, or anything it sits in, is not
+    // displayed, is hidden, or is (nearly) transparent.
+    function isShownIn(win) {
+        return (el) => {
+            let opacity = 1;
+            for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+                const style = win.getComputedStyle(e);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                opacity *= parseFloat(style.opacity);
+                if (opacity < 0.05) return false;
+            }
+            return true;
+        };
+    }
 
     // Decides, one sample at a time, when a stalled player should be recovered.
     // `adState` is the filter's latest report: while it is holding the last live frame
@@ -54,6 +88,11 @@
         let adStateAt = 0;
         let notice = null;
         let hideTimer = null;
+        let wanted = false;
+        let covered = false;
+        let candidates = [];
+        let candidatesAt = 0;
+        const isShown = isShownIn(win);
 
         function record(line) {
             if (win.CeladonTVDiagnostics) {
@@ -67,7 +106,9 @@
             if (notice || !doc.body) return notice;
             notice = doc.createElement('div');
             notice.id = 'celadontv-ad-notice';
+            // Decoration only: never focusable, never in the way of the remote or a pointer.
             notice.setAttribute('aria-hidden', 'true');
+            notice.inert = true;
             notice.style.cssText = [
                 'position:fixed', 'top:4.5vh', 'left:3.5vw', 'z-index:2147483647', 'pointer-events:none',
                 'display:flex', 'align-items:center', 'gap:0.6em', 'padding:0.55em 1em',
@@ -84,22 +125,55 @@
             return notice;
         }
 
+        function render() {
+            if (!notice) return;
+            const visible = wanted && !covered;
+            notice.style.opacity = visible ? '1' : '0';
+            notice.style.visibility = visible ? 'visible' : 'hidden';
+        }
+
+        // Steps aside while the player's controls show where the notice sits.
+        function checkControls() {
+            if (!wanted || !notice) return;
+            const now = Date.now();
+            if (now - candidatesAt >= CONTROLS_RESCAN_MS) {
+                const noticeRect = notice.getBoundingClientRect();
+                candidates = Array.from(doc.querySelectorAll(INTERACTIVE)).filter((el) => intersects(noticeRect, el.getBoundingClientRect()));
+                candidatesAt = now;
+            }
+            const nowCovered = coversControls(notice.getBoundingClientRect(), candidates, (el) => el.getBoundingClientRect(), isShown);
+            if (nowCovered === covered) return;
+            covered = nowCovered;
+            record(covered ? 'notice: player controls showing, stepped aside' : 'notice: player controls gone, back');
+            render();
+        }
+
         function show(text) {
-            clearTimeout(hideTimer);
+            win.clearTimeout(hideTimer);
             const el = ensureNotice();
             if (!el) return;
             el.lastChild.textContent = text;
-            if (el.style.visibility !== 'visible') record('notice shown: ' + text);
-            el.style.visibility = 'visible';
-            el.style.opacity = '1';
+            if (!wanted) record('notice shown: ' + text);
+            wanted = true;
+            candidatesAt = 0;
+            checkControls();
+            render();
         }
 
         function hide() {
-            if (!notice || notice.style.visibility === 'hidden') return;
-            notice.style.opacity = '0';
-            notice.style.visibility = 'hidden';
+            if (!wanted) return;
+            wanted = false;
+            covered = false;
+            render();
             record('notice hidden');
         }
+
+        win.setInterval(checkControls, CONTROLS_CHECK_MS);
+        // The controls appear on a key press; check right away and as they fade in.
+        win.addEventListener('keydown', () => {
+            candidatesAt = 0;
+            for (const delay of [0, 60, 150, 300]) win.setTimeout(checkControls, delay);
+        }, true);
 
         win.addEventListener('celadontv:adbreak', (event) => {
             adState = (event.detail && event.detail.state) || 'none';
@@ -107,8 +181,8 @@
             const text = noticeText(adState);
             if (text) show(text);
             else {
-                clearTimeout(hideTimer);
-                hideTimer = setTimeout(hide, NOTICE_LINGER_MS);
+                win.clearTimeout(hideTimer);
+                hideTimer = win.setTimeout(hide, NOTICE_LINGER_MS);
             }
         });
 
@@ -118,7 +192,7 @@
         } catch (e) { /* storage unavailable */ }
         const watch = createStallWatch({ lastRecover });
 
-        setInterval(() => {
+        win.setInterval(() => {
             const now = Date.now();
             // Reports stop when the player is closed; a stale break no longer counts.
             if (adState !== 'none' && now - adStateAt > BREAK_STALE_MS) {
@@ -150,6 +224,6 @@
     }
 
     if (typeof module !== 'undefined') {
-        module.exports = { createStallWatch, noticeText };
+        module.exports = { createStallWatch, noticeText, coversControls, isShownIn, install };
     }
 })();
