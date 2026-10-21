@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased (0.2.4)
+## Unreleased (0.2.5)
+
+#### **🐞 Bug Fixes**
+- Fixes "Oh bummer... An error occurred while playing this content" after watching for a while. When an ad break ended, Twitch's stream came back on segments cut a fraction of a second apart from the ad-free backup CeladonTV had been playing, and CeladonTV handed the player both under the same numbers, which broke playback on TVs. The switch back is now marked as a fresh start for the player, each quality level gets a backup at its own resolution, and a backup at the exact quality playing is preferred.
+- If Twitch's error screen does appear, CeladonTV reopens the channel by itself (at most 3 times in 10 minutes).
+- The "Blocking ads" notice only appears over the full-screen video during an ad break CeladonTV is blocking. It no longer shows on the home or browse screens, it hides while any of the player's controls or info are up, and it clears as soon as you leave the player. It can't take focus.
+
+## v0.2.4 (10/20/2026)
 
 #### **🐞 Bug Fixes**
 - The "Blocking ads" notice no longer covers the player controls. When the controls come up (for example the Go Back button in the top-left corner), the notice fades out of the way and comes back once they hide. It can never take focus or get in the way of the remote.
