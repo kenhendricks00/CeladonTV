@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased (0.2.5)
+## Unreleased (0.2.6)
+
+#### **✨ Features**
+- Shows BetterTTV, FrankerFaceZ and 7TV emotes in chat, like the browser extensions do on desktop Twitch: the channel's own emotes and the global ones, animated ones included, with zero-width emotes (such as 7TV's zero-width emotes and BetterTTV's overlays) drawn on top of the emote before them. Twitch's own emotes are unchanged. Each provider has its own switch under "Chat emotes" in CeladonTV settings, all on by default. If a provider can't be reached, its emote names simply stay as text.
+
+## v0.2.5 (10/21/2026)
 
 #### **🐞 Bug Fixes**
 - Fixes "Oh bummer... An error occurred while playing this content" after watching for a while. When an ad break ended, Twitch's stream came back on segments cut a fraction of a second apart from the ad-free backup CeladonTV had been playing, and CeladonTV handed the player both under the same numbers, which broke playback on TVs. The switch back is now marked as a fresh start for the player, each quality level gets a backup at its own resolution, and a backup at the exact quality playing is preferred.

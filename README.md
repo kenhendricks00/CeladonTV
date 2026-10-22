@@ -26,9 +26,10 @@ The name comes from `celadon`, the codename Twitch uses for its Android TV app (
 
 - **Twitch's own TV interface**: The same remote-friendly app Twitch ships for Android TV, including sign-in with an activation code
 - **Ad blocking**: Stitched ad segments are filtered out of the stream, and during an ad break the stream keeps playing from an ad-free backup when Twitch has one, with an upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script on top
+- **Chat emotes**: BetterTTV, FrankerFaceZ and 7TV emotes show in chat, as with the desktop browser extensions, with a switch per provider
 - **Self-updating scripts**: The ad-block script is checked against GitHub once a day
 - **Remote-first controls**: D-pad, Back, and media keys work as in the official app
-- **Simple settings**: Toggle ad blocking, pick the script variant, and check for updates from the remote
+- **Simple settings**: Toggle ad blocking and chat emotes, pick the script variant, and check for updates from the remote
 
 # 📋 Installation Instructions
 
@@ -127,6 +128,16 @@ origin, so they run before any page script. WebViews too old for that feature fa
    `vaft` (default, upstream's recommendation) or `video-swap-new`. Both are bundled in the APK.
    Once a day the app fetches the latest versions from GitHub; a download is kept only if its
    userscript header has the same name and a newer version, and it is used from the next launch.
+
+**Chat emotes.** `celadontv-emotes.js` (this repo) is injected when any emote provider is on,
+whether or not ad blocking is. It reads the channel's Twitch user ID from the player's own
+playback request (the usher access token), fetches the global and channel emote sets from the
+providers' public APIs (`7tv.io/v3`, `api.betterttv.net/3/cached`, `api.frankerfacez.com/v1`),
+and replaces matching words in chat messages with the emote images from their CDNs. Twitch's
+own emotes, mentions and links are left alone, and zero-width emotes are stacked on the emote
+before them. Sets are cached in localStorage (global for 6 hours, channels for 30 minutes, up to
+8 channels); a provider that can't be reached leaves its words as text. CeladonTV is not
+affiliated with BetterTTV, FrankerFaceZ or 7TV.
 
 **Debugging.** In debug builds the WebView is inspectable from `chrome://inspect`, and page
 console output is logged under the `CeladonTV` logcat tag.
