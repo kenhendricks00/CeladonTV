@@ -12,6 +12,14 @@
     <string name="pref_ad_block_summary">Inject the TwitchAdSolutions script and the hls.js ad-segment filter</string>
     <string name="pref_script_variant">Script variant</string>
 
+    <string name="pref_category_emotes">Chat emotes</string>
+    <string name="pref_emotes_7tv">7TV emotes</string>
+    <string name="pref_emotes_7tv_summary">Show the channel\'s and global 7TV emotes in chat</string>
+    <string name="pref_emotes_bttv">BetterTTV emotes</string>
+    <string name="pref_emotes_bttv_summary">Show the channel\'s and global BetterTTV emotes in chat</string>
+    <string name="pref_emotes_ffz">FrankerFaceZ emotes</string>
+    <string name="pref_emotes_ffz_summary">Show the channel\'s and global FrankerFaceZ emotes in chat</string>
+
     <string name="pref_category_updates">Script updates</string>
     <string name="pref_auto_update">Update scripts automatically</string>
     <string name="pref_auto_update_summary">Check TwitchAdSolutions on GitHub once a day; applied on next launch</string>

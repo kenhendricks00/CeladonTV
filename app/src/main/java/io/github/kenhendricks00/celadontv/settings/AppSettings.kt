@@ -19,6 +19,10 @@ class AppSettings(context: Context) {
 
     val diagnostics: Boolean get() = prefs.getBoolean(KEY_DIAGNOSTICS, false)
 
+    val emotesBttv: Boolean get() = prefs.getBoolean(KEY_EMOTES_BTTV, true)
+    val emotesFfz: Boolean get() = prefs.getBoolean(KEY_EMOTES_FFZ, true)
+    val emotes7tv: Boolean get() = prefs.getBoolean(KEY_EMOTES_7TV, true)
+
     var lastAppUpdateCheck: Long
         get() = prefs.getLong(KEY_LAST_APP_UPDATE_CHECK, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_APP_UPDATE_CHECK, value).apply()
@@ -31,6 +35,9 @@ class AppSettings(context: Context) {
         const val KEY_APP_UPDATE_CHECK = "app_update_check"
         const val KEY_CHECK_APP_UPDATE = "check_app_update"
         const val KEY_DIAGNOSTICS = "diagnostics"
+        const val KEY_EMOTES_BTTV = "emotes_bttv"
+        const val KEY_EMOTES_FFZ = "emotes_ffz"
+        const val KEY_EMOTES_7TV = "emotes_7tv"
         const val KEY_SAVE_DIAGNOSTICS = "save_diagnostics"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val KEY_LAST_APP_UPDATE_CHECK = "last_app_update_check"

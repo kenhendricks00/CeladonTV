@@ -138,7 +138,7 @@ class MainActivity : Activity() {
 
     // The marker script makes turning diagnostics on or off change the script list, which
     // reloads the page so the bridge below is added or removed.
-    private fun pageScripts() = listOf(readScriptAsset(SETTINGS_ROW_SCRIPT)) + AdBlock.scripts(this, settings) +
+    private fun pageScripts() = listOf(readScriptAsset(SETTINGS_ROW_SCRIPT)) + AdBlock.scripts(this, settings) + Emotes.scripts(this, settings) +
         listOfNotNull(DIAGNOSTICS_MARKER.takeIf { settings.diagnostics })
 
     /** Adds `window.CeladonTVDiagnostics` only while the user has diagnostics turned on. */

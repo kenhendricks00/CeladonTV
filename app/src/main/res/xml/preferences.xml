@@ -18,6 +18,26 @@
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_category_emotes">
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="emotes_7tv"
+            app:summary="@string/pref_emotes_7tv_summary"
+            app:title="@string/pref_emotes_7tv" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="emotes_bttv"
+            app:summary="@string/pref_emotes_bttv_summary"
+            app:title="@string/pref_emotes_bttv" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="emotes_ffz"
+            app:summary="@string/pref_emotes_ffz_summary"
+            app:title="@string/pref_emotes_ffz" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/pref_category_updates">
         <SwitchPreferenceCompat
             app:defaultValue="true"
