@@ -1,10 +1,10 @@
 [versions]
-agp = "9.4.1"
+agp = "9.5.0"
 appcompat = "1.8.0"
 json = "20260814"
 junit = "4.13.2"
 preference = "1.2.1"
-webkit = "1.17.1"
+webkit = "1.18.0"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
