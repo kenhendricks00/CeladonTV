@@ -3,6 +3,10 @@
     <string name="app_name">CeladonTV</string>
     <string name="settings_title">CeladonTV settings</string>
 
+    <string name="loading_wordmark_start" translatable="false">Celadon</string>
+    <string name="loading_wordmark_end" translatable="false">TV</string>
+    <string name="loading_message">Loading Twitch…</string>
+
     <string name="offline_title">Can\'t reach Twitch</string>
     <string name="offline_message">Check that your TV is connected to the internet. CeladonTV will try again as soon as the connection is back.</string>
     <string name="offline_retry">Retry</string>

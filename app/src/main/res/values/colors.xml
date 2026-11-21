@@ -10,4 +10,6 @@
     <color name="tw_focus_ring">#772CE8</color>
     <color name="tw_purple">#9147FF</color>
     <color name="tw_purple_light">#A970FF</color>
+    <!-- CeladonTV's own accent, from the emblem (branding/generate.py). -->
+    <color name="celadon">#ACE1AF</color>
 </resources>

@@ -11,25 +11,79 @@
         android:id="@+id/loading"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/tw_background"
+        android:background="@drawable/loading_background"
         android:gravity="center"
         android:orientation="vertical">
 
-        <ImageView
-            android:layout_width="320dp"
-            android:layout_height="180dp"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/banner" />
-
-        <ProgressBar
-            android:id="@+id/loading_progress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="240dp"
+        <LinearLayout
+            android:id="@+id/loading_content"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:max="100"
-            android:progressBackgroundTint="@color/tw_surface"
-            android:progressTint="@color/tw_purple" />
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <!-- The emblem sits inside the adaptive icon's 66dp safe zone, so it's scaled up
+                 (and nudged down to its visual centre) to fill the tile like a launcher icon. -->
+            <FrameLayout
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:background="@drawable/loading_tile">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no"
+                    android:scaleX="1.35"
+                    android:scaleY="1.35"
+                    android:src="@drawable/ic_launcher_foreground"
+                    android:translationY="4dp" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:contentDescription="@string/app_name"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:importantForAccessibility="no"
+                    android:letterSpacing="0.01"
+                    android:text="@string/loading_wordmark_start"
+                    android:textColor="@color/tw_text"
+                    android:textSize="36sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:importantForAccessibility="no"
+                    android:letterSpacing="0.01"
+                    android:text="@string/loading_wordmark_end"
+                    android:textColor="@color/celadon"
+                    android:textSize="36sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/loading_message"
+                android:textColor="@color/tw_text_muted"
+                android:textSize="15sp" />
+
+            <ProgressBar
+                android:id="@+id/loading_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="220dp"
+                android:layout_height="4dp"
+                android:layout_marginTop="36dp"
+                android:max="100"
+                android:progressDrawable="@drawable/loading_progress" />
+        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout

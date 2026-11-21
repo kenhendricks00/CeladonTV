@@ -7,9 +7,13 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.webkit.ConsoleMessage
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
@@ -32,6 +36,7 @@ class MainActivity : Activity() {
     private lateinit var settings: AppSettings
     private lateinit var appUpdates: AppUpdateFlow
     private lateinit var loading: View
+    private lateinit var loadingContent: View
     private lateinit var loadingProgress: ProgressBar
     private lateinit var offline: View
     private val connectivity by lazy { getSystemService(ConnectivityManager::class.java) }
@@ -47,6 +52,8 @@ class MainActivity : Activity() {
 
     private var backLongPressed = false
     private var diagnosticsBridge: DiagnosticsBridge? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var layoutCheck: Runnable? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,7 +77,9 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         findViewById<FrameLayout>(R.id.root).addView(webView, 0)
         loading = findViewById(R.id.loading)
+        loadingContent = findViewById(R.id.loading_content)
         loadingProgress = findViewById(R.id.loading_progress)
+        animateLoadingIn()
         offline = findViewById(R.id.offline)
         findViewById<Button>(R.id.offline_retry).setOnClickListener { retry() }
         connectivity.registerDefaultNetworkCallback(networkCallback)
@@ -89,7 +98,10 @@ class MainActivity : Activity() {
         webView.onResume()
         appUpdates.onResume()
         syncDiagnostics()
-        if (injector.apply(pageScripts())) webView.reload()
+        if (injector.apply(pageScripts()) && !isOffline()) {
+            showLoading()
+            webView.reload()
+        }
     }
 
     override fun onPause() {
@@ -99,6 +111,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         connectivity.unregisterNetworkCallback(networkCallback)
+        stopLayoutCheck()
         webView.destroy()
         super.onDestroy()
     }
@@ -158,9 +171,58 @@ class MainActivity : Activity() {
         if (webView.url?.startsWith(TwitchTv.ORIGIN) == true) openSettings()
     }
 
-    /** Fades out the loading screen once Twitch's page has loaded. */
+    private fun showLoading() {
+        stopLayoutCheck()
+        loading.animate().cancel()
+        loadingProgress.progress = 0
+        loading.alpha = 1f
+        loading.visibility = View.VISIBLE
+        animateLoadingIn()
+    }
+
+    /** Fades the logo, name and progress bar in, rising slightly. */
+    private fun animateLoadingIn() {
+        loadingContent.animate().cancel()
+        loadingContent.alpha = 0f
+        loadingContent.translationY = 16 * resources.displayMetrics.density
+        loadingContent.animate().alpha(1f).translationY(0f).setDuration(450)
+            .setInterpolator(DecelerateInterpolator()).start()
+    }
+
+    /**
+     * Keeps the loading screen up after the page loads until Starshot has laid itself out,
+     * so its boot spinner never shows in the top-left corner. Gives up after [LAYOUT_TIMEOUT_MS].
+     */
+    private fun hideLoadingOnceLaidOut() {
+        if (loading.visibility != View.VISIBLE) return
+        stopLayoutCheck()
+        val deadline = SystemClock.uptimeMillis() + LAYOUT_TIMEOUT_MS
+        val check = object : Runnable {
+            override fun run() {
+                webView.evaluateJavascript(TwitchTv.LAID_OUT_SCRIPT) { laidOut ->
+                    if (layoutCheck !== this) return@evaluateJavascript
+                    if (laidOut == "true" || SystemClock.uptimeMillis() >= deadline) {
+                        layoutCheck = null
+                        hideLoading()
+                    } else {
+                        handler.postDelayed(this, LAYOUT_POLL_MS)
+                    }
+                }
+            }
+        }
+        layoutCheck = check
+        check.run()
+    }
+
+    private fun stopLayoutCheck() {
+        layoutCheck?.let(handler::removeCallbacks)
+        layoutCheck = null
+    }
+
+    /** Fades out the loading screen. */
     private fun hideLoading() {
         if (loading.visibility != View.VISIBLE) return
+        loadingProgress.setProgress(loadingProgress.max, true)
         loading.animate().alpha(0f).setDuration(250).withEndAction { loading.visibility = View.GONE }
     }
 
@@ -168,6 +230,7 @@ class MainActivity : Activity() {
 
     /** Replaces the WebView's error page; the WebView is hidden so D-pad focus stays on Retry. */
     private fun showOffline() {
+        stopLayoutCheck()
         loading.animate().cancel()
         loading.visibility = View.GONE
         webView.visibility = View.INVISIBLE
@@ -177,9 +240,7 @@ class MainActivity : Activity() {
 
     private fun retry() {
         offline.visibility = View.GONE
-        loadingProgress.progress = 0
-        loading.alpha = 1f
-        loading.visibility = View.VISIBLE
+        showLoading()
         webView.visibility = View.VISIBLE
         webView.requestFocus()
         webView.reload()
@@ -192,7 +253,7 @@ class MainActivity : Activity() {
         }
 
         override fun onPageFinished(view: WebView, url: String) {
-            if (url.startsWith(TwitchTv.ORIGIN)) hideLoading()
+            if (url.startsWith(TwitchTv.ORIGIN)) hideLoadingOnceLaidOut()
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -212,7 +273,8 @@ class MainActivity : Activity() {
 
     private inner class ChromeClient : WebChromeClient() {
         override fun onProgressChanged(view: WebView, newProgress: Int) {
-            loadingProgress.progress = newProgress
+            // The last tenth is left for Starshot laying itself out after the page loads.
+            loadingProgress.setProgress(newProgress * 9 / 10, true)
         }
 
         /** Replaces WebView's default poster (a large gray play button) shown before a video starts. */
@@ -228,5 +290,7 @@ class MainActivity : Activity() {
         const val TAG = "CeladonTV"
         const val SETTINGS_ROW_SCRIPT = "celadontv-settings-row.js"
         const val DIAGNOSTICS_MARKER = "window.__ctvDiagnostics = true;"
+        const val LAYOUT_POLL_MS = 100L
+        const val LAYOUT_TIMEOUT_MS = 10_000L
     }
 }

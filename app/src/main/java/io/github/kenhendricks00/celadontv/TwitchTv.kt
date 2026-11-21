@@ -11,6 +11,13 @@ object TwitchTv {
     const val ORIGIN = "https://celadon.tv.twitch.tv"
     const val HOME_URL = "$ORIGIN/"
 
+    /**
+     * True once Starshot's styles have given the page its full size. While it boots, its body
+     * is a zero-size fixed box, so its boot spinner is centred on the top-left corner instead
+     * of the screen.
+     */
+    const val LAID_OUT_SCRIPT = "document.body != null && document.body.clientHeight >= window.innerHeight / 2"
+
     val BACK_SCRIPT = keydownScript("Escape", 27)
 
     /**
