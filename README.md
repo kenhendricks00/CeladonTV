@@ -143,7 +143,15 @@ affiliated with BetterTTV, FrankerFaceZ or 7TV.
 console output is logged under the `CeladonTV` logcat tag.
 
 **Branding.** `branding/generate.py` renders the launcher icon, TV banners, and README artwork
-from one emblem definition.
+from one emblem definition. `branding/donate_qr.py` draws the QR codes for the donation pages
+shown under **Support CeladonTV** in settings.
+
+# 💜 Support
+
+CeladonTV is free and every feature stays free. If you'd like to support its development, you can
+buy me a coffee on [Ko-fi](https://ko-fi.com/kenhendricks) or
+[Buy Me a Coffee](https://buymeacoffee.com/kenhendricks). On the TV, **Support CeladonTV** in
+CeladonTV settings shows both as QR codes to scan with your phone.
 
 # 🤝 Contributing
 

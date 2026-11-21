@@ -1,6 +1,9 @@
 package io.github.kenhendricks00.celadontv.settings
 
 import android.os.Bundle
+import android.view.View
+import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -29,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.preferences, rootKey)
             updateNow.setOnPreferenceClickListener { runUpdate(); true }
+            requirePreference(KEY_SUPPORT).setOnPreferenceClickListener { showSupport(); true }
             requirePreference(KEY_LICENSES).setOnPreferenceClickListener { showLicenses(); true }
             requirePreference(AppSettings.KEY_SAVE_DIAGNOSTICS).setOnPreferenceClickListener { saveDiagnostics(); true }
             requirePreference(AppSettings.KEY_DIAGNOSTICS).setOnPreferenceChangeListener { _, enabled ->
@@ -82,6 +86,23 @@ class SettingsActivity : AppCompatActivity() {
             Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
         }
 
+        /** TVs rarely have a usable browser, so the donation pages are shown as QR codes to scan. */
+        private fun showSupport() {
+            val body = layoutInflater.inflate(R.layout.dialog_support, null)
+            fun bind(id: Int, code: Int, name: Int, url: Int) = body.findViewById<View>(id).apply {
+                findViewById<ImageView>(R.id.support_code).setImageResource(code)
+                findViewById<TextView>(R.id.support_name).setText(name)
+                findViewById<TextView>(R.id.support_url).setText(url)
+            }
+            bind(R.id.support_kofi, R.drawable.donate_qr_kofi, R.string.donate_kofi, R.string.donate_kofi_url)
+            bind(R.id.support_bmac, R.drawable.donate_qr_bmac, R.string.donate_bmac, R.string.donate_bmac_url)
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.pref_support)
+                .setView(body)
+                .setPositiveButton(R.string.support_close, null)
+                .show()
+        }
+
         private fun showLicenses() {
             val text = requireContext().assets.open("scripts/LICENSE-TwitchAdSolutions.txt").bufferedReader().use { it.readText() }
             AlertDialog.Builder(requireContext())
@@ -94,6 +115,7 @@ class SettingsActivity : AppCompatActivity() {
         private fun requirePreference(key: String): Preference = checkNotNull(findPreference(key)) { "Missing preference $key" }
 
         private companion object {
+            const val KEY_SUPPORT = "support"
             const val KEY_LICENSES = "licenses"
         }
     }

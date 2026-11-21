@@ -78,6 +78,11 @@
 
     <PreferenceCategory app:title="@string/pref_category_about">
         <Preference
+            app:key="support"
+            app:summary="@string/pref_support_summary"
+            app:title="@string/pref_support" />
+
+        <Preference
             app:key="licenses"
             app:summary="@string/pref_licenses_summary"
             app:title="@string/pref_licenses" />

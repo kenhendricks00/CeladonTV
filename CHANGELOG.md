@@ -5,6 +5,7 @@
 #### **✨ Features**
 - Shows BetterTTV, FrankerFaceZ and 7TV emotes in chat, like the browser extensions do on desktop Twitch: the channel's own emotes and the global ones, animated ones included, with zero-width emotes (such as 7TV's zero-width emotes and BetterTTV's overlays) drawn on top of the emote before them. Twitch's own emotes are unchanged. Each provider has its own switch under "Chat emotes" in CeladonTV settings, all on by default. If a provider can't be reached, its emote names simply stay as text.
 - A new loading screen: the CeladonTV icon and name on a soft purple glow, with a "Loading Twitch…" line and a slimmer progress bar that moves smoothly instead of jumping.
+- Adds "Support CeladonTV" under About in CeladonTV settings. It shows QR codes for the project's Ko-fi and Buy Me a Coffee pages to scan with your phone. Donations are entirely optional; nothing in the app is locked behind them.
 
 #### **🐞 Bug Fixes**
 - Twitch's orange loading spinner no longer flashes in the top-left corner on startup. The CeladonTV loading screen now stays up until Twitch's home screen is ready to draw, and it also covers the reload after changing settings.

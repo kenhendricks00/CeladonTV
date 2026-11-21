@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One donation page: its QR code, name and a short link to type in by hand. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
+
+    <ImageView
+        android:id="@+id/support_code"
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:background="@drawable/support_code_background"
+        android:importantForAccessibility="no"
+        android:padding="4dp" />
+
+    <TextView
+        android:id="@+id/support_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/tw_text"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/support_url"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="@color/tw_text_muted"
+        android:textSize="13sp" />
+</LinearLayout>
