@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased (0.2.7)
+## Unreleased (0.2.8)
+
+#### **✨ Features**
+- Chat no longer starts empty. When you open a channel, chat fills with its last 50 messages, with their badges and name colors, so you can see what people were talking about before you tuned in. The messages come from the public recent-messages service (recent-messages.robotty.de); if it can't be reached, chat simply starts empty as before. Turn it off with "Show earlier messages" under "Chat" in CeladonTV settings.
+- Adds chat filters under "Chat" in CeladonTV settings: "Hide bot messages" (Nightbot, StreamElements and other common bots), "Hide chat commands" (messages starting with "!", such as !uptime), "Hidden words" for words or phrases you don't want to see (handy for spoilers), and "Hidden users". Filters apply to earlier messages too. Subs, raids and other channel notices are never hidden.
+
+## v0.2.7 (11/21/2026)
 
 #### **✨ Features**
 - A new loading screen: the CeladonTV icon and name on a soft purple glow, with a "Loading Twitch…" line and a slimmer progress bar that moves smoothly instead of jumping.
