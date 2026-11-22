@@ -151,8 +151,8 @@ class MainActivity : Activity() {
 
     // The marker script makes turning diagnostics on or off change the script list, which
     // reloads the page so the bridge below is added or removed.
-    private fun pageScripts() = listOf(readScriptAsset(SETTINGS_ROW_SCRIPT)) + AdBlock.scripts(this, settings) + Emotes.scripts(this, settings) +
-        Chat.scripts(this, settings) +
+    private fun pageScripts() = listOf(readScriptAsset(SETTINGS_ROW_SCRIPT), readScriptAsset(ERROR_RECOVERY_SCRIPT)) +
+        AdBlock.scripts(this, settings) + Emotes.scripts(this, settings) + Chat.scripts(this, settings) +
         listOfNotNull(DIAGNOSTICS_MARKER.takeIf { settings.diagnostics })
 
     /** Adds `window.CeladonTVDiagnostics` only while the user has diagnostics turned on. */
@@ -290,6 +290,7 @@ class MainActivity : Activity() {
     private companion object {
         const val TAG = "CeladonTV"
         const val SETTINGS_ROW_SCRIPT = "celadontv-settings-row.js"
+        const val ERROR_RECOVERY_SCRIPT = "celadontv-error-recovery.js"
         const val DIAGNOSTICS_MARKER = "window.__ctvDiagnostics = true;"
         const val LAYOUT_POLL_MS = 100L
         const val LAYOUT_TIMEOUT_MS = 10_000L

@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased (0.2.8)
+## Unreleased (0.2.9)
+
+#### **🐞 Bug Fixes**
+- Signing in to Twitch no longer ends on "Looks like something went wrong, please try again later." After entering the activation code, CeladonTV now goes straight to the home screen, signed in. Signing out works cleanly too. And if that error screen ever does appear, its Reload button now opens the home screen instead of reloading the page that failed.
+
+## v0.2.8 (11/21/2026)
 
 #### **✨ Features**
 - Chat no longer starts empty. When you open a channel, chat fills with its last 50 messages, with their badges and name colors, so you can see what people were talking about before you tuned in. The messages come from the public recent-messages service (recent-messages.robotty.de); if it can't be reached, chat simply starts empty as before. Turn it off with "Show earlier messages" under "Chat" in CeladonTV settings.

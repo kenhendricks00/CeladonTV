@@ -93,7 +93,13 @@ Android TV client hosts it in a regular Android WebView and talks to it through 
 - the page gets the exact environment Twitch designed it for (no Chromium fork to build or keep
   in sync, and the WebView engine updates through the Play Store);
 - `NativeHooks` implements the bridge, so Back on the home screen exits the app as in the
-  official client.
+  official client. It has every method Starshot calls (`requestNativeAppClose`, `loggedIn`,
+  `loggedOut`, `videoPlayerStateChanged`, `setPlaybackPosition`): a missing one throws in the
+  page, and a missing `loggedIn` left the login page on Starshot's error screen after sign-in.
+  CeladonTV doesn't keep the token `loggedIn` passes; the page holds its own session.
+- `celadontv-error-recovery.js` makes the Reload button on Starshot's "something went wrong"
+  screen open the home screen. Starshot's own Reload reloads the failing URL, which only brings
+  the error back when that page is what fails.
 
 **Entry point: `https://celadon.tv.twitch.tv/`.**
 Twitch's TV web app ("Starshot") picks its platform from the first hostname label, using
