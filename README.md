@@ -26,10 +26,12 @@ The name comes from `celadon`, the codename Twitch uses for its Android TV app (
 
 - **Twitch's own TV interface**: The same remote-friendly app Twitch ships for Android TV, including sign-in with an activation code
 - **Ad blocking**: Stitched ad segments are filtered out of the stream, and during an ad break the stream keeps playing from an ad-free backup when Twitch has one, with an upstream [TwitchAdSolutions](https://github.com/ryanbr/TwitchAdSolutions) script on top
+- **Earlier chat messages**: Opening a channel fills chat with its last messages, so you see the conversation you walked into instead of an empty chat
+- **Chat filters**: Hide bot messages, chat commands like `!uptime`, messages with words you choose, or messages from users you choose
 - **Chat emotes**: BetterTTV, FrankerFaceZ and 7TV emotes show in chat, as with the desktop browser extensions, with a switch per provider
 - **Self-updating scripts**: The ad-block script is checked against GitHub once a day
 - **Remote-first controls**: D-pad, Back, and media keys work as in the official app
-- **Simple settings**: Toggle ad blocking and chat emotes, pick the script variant, and check for updates from the remote
+- **Simple settings**: Toggle ad blocking, chat features and chat emotes, pick the script variant, and check for updates from the remote
 
 # 📋 Installation Instructions
 
@@ -72,6 +74,9 @@ Settings:
 
 - **Block ads**: Turns both scripts on or off (reloads the page)
 - **Script variant**: `vaft` or `video-swap-new` (reloads the page)
+- **Show earlier messages**: Fill chat with the channel's last messages when you open it (on by default)
+- **Hide bot messages** / **Hide chat commands**: Hide common chat bots, and messages starting with `!`
+- **Hidden words** / **Hidden users**: Comma-separated lists of words, phrases or users whose messages are hidden
 - **Update scripts automatically**: Daily check against TwitchAdSolutions on GitHub
 - **Check for updates now**: Shows the active script versions and checks immediately
 - **Open-source licenses**: TwitchAdSolutions license
@@ -138,6 +143,22 @@ own emotes, mentions and links are left alone, and zero-width emotes are stacked
 before them. Sets are cached in localStorage (global for 6 hours, channels for 30 minutes, up to
 8 channels); a provider that can't be reached leaves its words as text. CeladonTV is not
 affiliated with BetterTTV, FrankerFaceZ or 7TV.
+
+**Chat history and filters.** Starshot reads chat as IRC over a WebSocket to
+`irc-ws.chat.twitch.tv`. `celadontv-chat.js` (this repo) is injected when any chat option is on.
+It wraps the page's `WebSocket` so that chat sockets (and only those) pass their frames through
+it before Starshot's handlers see them:
+
+- when Starshot sends `JOIN #channel`, the channel's last 50 messages are fetched from
+  [recent-messages.robotty.de](https://recent-messages.robotty.de) (moderated messages left out),
+  rewritten into Twitch's strict IRC form and handed to Starshot once the join is confirmed.
+  Live lines for that channel wait behind them (up to 4 seconds), so the order stays right, and
+  message IDs already shown are skipped, so a reconnect doesn't repeat history;
+- chat messages (`PRIVMSG` only, never subs, raids or other notices) from known bots, starting
+  with `!`, containing a hidden word (whole words, case-insensitive) or sent by a hidden user are
+  dropped before Starshot sees them, live and in the history alike.
+
+If the history service is down, chat starts empty, as it does in Twitch's own app.
 
 **Debugging.** In debug builds the WebView is inspectable from `chrome://inspect`, and page
 console output is logged under the `CeladonTV` logcat tag.

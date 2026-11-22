@@ -16,6 +16,19 @@
     <string name="pref_ad_block_summary">Inject the TwitchAdSolutions script and the hls.js ad-segment filter</string>
     <string name="pref_script_variant">Script variant</string>
 
+    <string name="pref_category_chat">Chat</string>
+    <string name="pref_chat_history">Show earlier messages</string>
+    <string name="pref_chat_history_summary">When you open a channel, fill chat with its last messages from recent-messages.robotty.de</string>
+    <string name="pref_chat_hide_bots">Hide bot messages</string>
+    <string name="pref_chat_hide_bots_summary">Hide messages from common chat bots such as Nightbot and StreamElements</string>
+    <string name="pref_chat_hide_commands">Hide chat commands</string>
+    <string name="pref_chat_hide_commands_summary">Hide messages that start with \"!\", such as !uptime</string>
+    <string name="pref_chat_hidden_words">Hidden words</string>
+    <string name="pref_chat_hidden_words_dialog">Messages with any of these words or phrases are hidden. Separate them with commas.</string>
+    <string name="pref_chat_hidden_users">Hidden users</string>
+    <string name="pref_chat_hidden_users_dialog">Messages from these users are hidden. Separate names with commas.</string>
+    <string name="pref_chat_hidden_none">None</string>
+
     <string name="pref_category_emotes">Chat emotes</string>
     <string name="pref_emotes_7tv">7TV emotes</string>
     <string name="pref_emotes_7tv_summary">Show the channel\'s and global 7TV emotes in chat</string>

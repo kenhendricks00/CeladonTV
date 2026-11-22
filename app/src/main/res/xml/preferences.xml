@@ -18,6 +18,38 @@
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_category_chat">
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="chat_history"
+            app:summary="@string/pref_chat_history_summary"
+            app:title="@string/pref_chat_history" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="chat_hide_bots"
+            app:summary="@string/pref_chat_hide_bots_summary"
+            app:title="@string/pref_chat_hide_bots" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="chat_hide_commands"
+            app:summary="@string/pref_chat_hide_commands_summary"
+            app:title="@string/pref_chat_hide_commands" />
+
+        <EditTextPreference
+            app:dialogMessage="@string/pref_chat_hidden_words_dialog"
+            app:dialogTitle="@string/pref_chat_hidden_words"
+            app:key="chat_hidden_words"
+            app:title="@string/pref_chat_hidden_words" />
+
+        <EditTextPreference
+            app:dialogMessage="@string/pref_chat_hidden_users_dialog"
+            app:dialogTitle="@string/pref_chat_hidden_users"
+            app:key="chat_hidden_users"
+            app:title="@string/pref_chat_hidden_users" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/pref_category_emotes">
         <SwitchPreferenceCompat
             app:defaultValue="true"

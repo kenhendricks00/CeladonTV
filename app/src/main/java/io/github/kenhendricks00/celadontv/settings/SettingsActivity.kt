@@ -7,6 +7,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import io.github.kenhendricks00.celadontv.AdBlock
@@ -43,7 +44,17 @@ class SettingsActivity : AppCompatActivity() {
                 summary = getString(R.string.pref_check_app_update_summary, BuildConfig.VERSION_NAME)
                 setOnPreferenceClickListener { appUpdates.checkNow(); true }
             }
+            listOf(AppSettings.KEY_CHAT_HIDDEN_WORDS, AppSettings.KEY_CHAT_HIDDEN_USERS).forEach(::showHiddenList)
             showVersions()
+        }
+
+        /** A hidden words or users field shows its entries, tidied, or "None". */
+        private fun showHiddenList(key: String) {
+            val field = checkNotNull(findPreference<EditTextPreference>(key)) { "Missing preference $key" }
+            field.setSummaryProvider {
+                AppSettings.splitList((it as EditTextPreference).text).joinToString(", ").ifEmpty { getString(R.string.pref_chat_hidden_none) }
+            }
+            field.setOnBindEditTextListener { it.setSingleLine(true) }
         }
 
         override fun onResume() {

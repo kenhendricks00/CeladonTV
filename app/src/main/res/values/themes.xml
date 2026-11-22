@@ -24,6 +24,7 @@
     <style name="PreferenceThemeOverlay.CeladonTV" parent="PreferenceThemeOverlay">
         <item name="preferenceStyle">@style/Preference.CeladonTV</item>
         <item name="dialogPreferenceStyle">@style/Preference.CeladonTV.Dialog</item>
+        <item name="editTextPreferenceStyle">@style/Preference.CeladonTV.EditText</item>
         <item name="switchPreferenceCompatStyle">@style/Preference.CeladonTV.Switch</item>
         <item name="preferenceCategoryStyle">@style/Preference.CeladonTV.Category</item>
         <item name="preferenceFragmentCompatStyle">@style/PreferenceFragment.CeladonTV</item>
@@ -34,6 +35,10 @@
     </style>
 
     <style name="Preference.CeladonTV.Dialog" parent="Preference.DialogPreference.Material">
+        <item name="android:layout">@layout/tw_preference</item>
+    </style>
+
+    <style name="Preference.CeladonTV.EditText" parent="Preference.DialogPreference.EditTextPreference.Material">
         <item name="android:layout">@layout/tw_preference</item>
     </style>
 
